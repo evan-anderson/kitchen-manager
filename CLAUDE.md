@@ -37,3 +37,13 @@ All specs and JSON schemas live in `specs/`. The essential docs:
 ## Target Stack
 
 Python 3.11+, FastAPI, python-telegram-bot, anthropic SDK, gspread, rapidfuzz, APScheduler, SQLite. Deploy via Railway with Procfile.
+
+## Development Conventions
+
+- **Dependency management**: `uv`. Use `uv sync` to install, `uv add <pkg>` to add deps. No requirements.txt.
+- **Models**: Pydantic v2 for all data contracts (replaces JSON schemas). JSON schema files in `specs/` are reference only.
+- **LLM model**: `claude-opus-4-6` for complex tasks (parser, planner, responder). `claude-haiku-4-5` for fast intent classification first-pass.
+- **Structured outputs**: Use `client.messages.parse()` with Pydantic models as `output_format`.
+- **Tests**: Write tests for everything. Run with `uv run pytest`. Tests must pass before committing.
+- **Git**: Commit directly to `main`. No PRs — solo project.
+- **Railway**: Already connected. Persistent volume at `/data`, set `DATABASE_PATH=/data/kitchen.db` in Railway env vars.
