@@ -18,9 +18,9 @@ This is v0 — a 3-4 week prototype. Architecture is deterministic routing with 
 
 ## Key Specs
 
-All specs and JSON schemas live in `specs/`. The two essential docs:
-- `specs/handoff.md` — project goals, design constraints, execution plan, and the 10 spec edits that shaped the current architecture
+All specs and JSON schemas live in `specs/`. The essential docs:
 - `specs/kitchen_agent_telegram_build_spec_v2.md` — full technical spec with SQLite schema, request flow contracts, model prompt contracts, admin commands, guardrails
+- `specs/execution_plan.md` — 5-phase development roadmap with time estimates and checkpoints
 
 ## Design Constraints
 
