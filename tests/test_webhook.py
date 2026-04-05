@@ -1,9 +1,13 @@
 """
 Tests for the FastAPI Telegram webhook endpoint.
-Telegram bot is mocked — no real API calls.
+Telegram bot and LLM/Sheets services are mocked — no real API calls.
 """
 
+from unittest.mock import AsyncMock, patch
+
 import pytest
+
+from models.bot_response import BotResponseOutput
 
 
 def _make_update(
@@ -25,6 +29,14 @@ def _make_update(
     }
 
 
+def _mock_route_response(summary="Got it!"):
+    return BotResponseOutput(
+        message_type="confirmation",
+        summary=summary,
+        trace_id="test-trace-id",
+    )
+
+
 # ------------------------------------------------------------------
 # Health check
 # ------------------------------------------------------------------
@@ -44,24 +56,27 @@ async def test_health(client):
 
 async def test_webhook_returns_200(client):
     c, _ = client
-    resp = await c.post("/telegram-webhook", json=_make_update())
+    with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response()):
+        resp = await c.post("/telegram-webhook", json=_make_update())
     assert resp.status_code == 200
     assert resp.json() == {"ok": True}
 
 
-async def test_webhook_sends_echo(client):
+async def test_webhook_sends_routed_reply(client):
     c, mock_bot = client
-    await c.post("/telegram-webhook", json=_make_update(text="Hello bot"))
+    with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response("Added milk")):
+        await c.post("/telegram-webhook", json=_make_update(text="added milk"))
     mock_bot.send_message.assert_awaited_once()
     call_kwargs = mock_bot.send_message.call_args.kwargs
-    assert "Echo: Hello bot" in call_kwargs.get("text", "")
+    assert call_kwargs.get("text") == "Added milk"
 
 
 async def test_webhook_records_update(client, db_path):
     c, _ = client
     from storage.sqlite import is_duplicate
 
-    await c.post("/telegram-webhook", json=_make_update(update_id=5001))
+    with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response()):
+        await c.post("/telegram-webhook", json=_make_update(update_id=5001))
     assert await is_duplicate("5001", db_path=db_path) is True
 
 
@@ -70,12 +85,13 @@ async def test_webhook_records_update(client, db_path):
 # ------------------------------------------------------------------
 
 
-async def test_duplicate_update_not_echoed_twice(client):
+async def test_duplicate_update_not_processed_twice(client):
     c, mock_bot = client
     update = _make_update(update_id=9999)
 
-    await c.post("/telegram-webhook", json=update)
-    await c.post("/telegram-webhook", json=update)
+    with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response()):
+        await c.post("/telegram-webhook", json=update)
+        await c.post("/telegram-webhook", json=update)
 
     # send_message called only once despite two POSTs
     assert mock_bot.send_message.await_count == 1
@@ -84,10 +100,37 @@ async def test_duplicate_update_not_echoed_twice(client):
 async def test_duplicate_returns_200(client):
     c, _ = client
     update = _make_update(update_id=8888)
-    r1 = await c.post("/telegram-webhook", json=update)
-    r2 = await c.post("/telegram-webhook", json=update)
+    with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response()):
+        r1 = await c.post("/telegram-webhook", json=update)
+        r2 = await c.post("/telegram-webhook", json=update)
     assert r1.status_code == 200
     assert r2.status_code == 200
+
+
+# ------------------------------------------------------------------
+# Cost ceiling
+# ------------------------------------------------------------------
+
+
+async def test_cost_ceiling_blocks_processing(client):
+    c, mock_bot = client
+    with patch("main.get_today_spend", new_callable=AsyncMock, return_value=10.0):
+        await c.post("/telegram-webhook", json=_make_update())
+    call_kwargs = mock_bot.send_message.call_args.kwargs
+    assert "budget" in call_kwargs.get("text", "").lower()
+
+
+# ------------------------------------------------------------------
+# Error handling
+# ------------------------------------------------------------------
+
+
+async def test_route_error_returns_friendly_message(client):
+    c, mock_bot = client
+    with patch("main.route", new_callable=AsyncMock, side_effect=RuntimeError("boom")):
+        await c.post("/telegram-webhook", json=_make_update())
+    call_kwargs = mock_bot.send_message.call_args.kwargs
+    assert "something went wrong" in call_kwargs.get("text", "").lower()
 
 
 # ------------------------------------------------------------------
@@ -152,8 +195,9 @@ async def test_different_updates_are_all_recorded(client, db_path):
     c, _ = client
     from storage.sqlite import is_duplicate
 
-    for update_id in [1, 2, 3]:
-        await c.post("/telegram-webhook", json=_make_update(update_id=update_id))
+    with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response()):
+        for update_id in [1, 2, 3]:
+            await c.post("/telegram-webhook", json=_make_update(update_id=update_id))
 
     for update_id in [1, 2, 3]:
         assert await is_duplicate(str(update_id), db_path=db_path) is True

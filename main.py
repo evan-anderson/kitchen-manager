@@ -1,6 +1,6 @@
 """
 Kitchen Manager — Telegram webhook server.
-Phase 1: echo bot with idempotency + SQLite init.
+Phase 2: intent classification + inventory pipeline.
 """
 
 from __future__ import annotations
@@ -15,7 +15,9 @@ import telegram
 from fastapi import Depends, FastAPI, Request
 
 from config import settings
-from storage.sqlite import init_db, is_duplicate, record_update
+from routers.intent_router import route
+from services import get_llm_client, get_sheets_client
+from storage.sqlite import get_today_spend, init_db, is_duplicate, record_update
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -119,8 +121,33 @@ async def telegram_webhook(
 
     await record_update(update_id, chat_id, payload_hash, db_path=db_path)
 
-    # --- Phase 1: echo ---
-    reply = f"Echo: {text}" if text else "(no text)"
+    # --- Cost ceiling check ---
+    today_spend = await get_today_spend(db_path=db_path)
+    if today_spend >= settings.daily_cost_ceiling_usd:
+        logger.warning("Daily cost ceiling reached ($%.2f). Rejecting update %s", today_spend, update_id)
+        if bot and text:
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text="I've hit my daily budget limit. I'll be back tomorrow!",
+                )
+            except Exception as exc:
+                logger.error("Failed to send cost ceiling message: %s", exc)
+        return {"ok": True}
+
+    # --- Route to handler ---
+    if not text:
+        reply = "(no text)"
+    else:
+        try:
+            llm = get_llm_client()
+            sheets = get_sheets_client()
+            response = await route(text, chat_id, update_id, llm, sheets)
+            reply = response.summary
+        except Exception as exc:
+            logger.exception("Error routing message for update %s: %s", update_id, exc)
+            reply = "Something went wrong processing your message. Please try again."
+
     if bot:
         try:
             await bot.send_message(chat_id=chat_id, text=reply)

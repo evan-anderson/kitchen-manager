@@ -19,6 +19,7 @@ class Settings(BaseSettings):
 
     # Google Sheets
     google_service_account_json: str = ""
+    spreadsheet_id: str = ""
 
     # Database
     database_path: str = "data/kitchen.db"
