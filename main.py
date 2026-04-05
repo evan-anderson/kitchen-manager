@@ -41,8 +41,11 @@ async def lifespan(app: FastAPI):
         _bot = telegram.Bot(token=settings.telegram_bot_token)
         logger.info("Telegram bot initialised")
         if settings.telegram_webhook_url:
-            await _bot.set_webhook(url=settings.telegram_webhook_url)
-            logger.info("Webhook set to %s", settings.telegram_webhook_url)
+            try:
+                await _bot.set_webhook(url=settings.telegram_webhook_url)
+                logger.info("Webhook set to %s", settings.telegram_webhook_url)
+            except Exception as e:
+                logger.error("Failed to set webhook: %s", e)
     else:
         logger.warning("TELEGRAM_BOT_TOKEN not set — bot will not send messages")
 
