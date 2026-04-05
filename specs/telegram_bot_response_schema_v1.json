@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "BotResponseOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["message_type", "summary", "trace_id"],
+  "properties": {
+    "message_type": {
+      "type": "string",
+      "enum": ["confirmation", "clarification_question", "error", "plan", "query_answer", "feedback_ack", "meta_response"]
+    },
+    "summary": {
+      "type": "string",
+      "description": "1-line Telegram-friendly message"
+    },
+    "details": {"type": "object"},
+    "suggested_actions": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "trace_id": {"type": "string"}
+  }
+}

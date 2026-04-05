@@ -1,0 +1,42 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "FeedbackParserOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["feedback_type", "subject", "sentiment"],
+  "properties": {
+    "feedback_type": {
+      "type": "string",
+      "enum": ["meal_reaction", "preference", "restriction", "general"]
+    },
+    "subject": {
+      "type": "string",
+      "description": "What the feedback is about (meal name, ingredient, cuisine, etc.)"
+    },
+    "sentiment": {
+      "type": "string",
+      "enum": ["positive", "negative", "neutral"]
+    },
+    "who": {
+      "type": ["string", "null"],
+      "description": "Family member the feedback applies to (e.g., Oliver, Danica, everyone)"
+    },
+    "detail": {
+      "type": ["string", "null"],
+      "description": "Additional context (e.g., 'too spicy', 'wants more of this')"
+    },
+    "memory_updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["memory_type", "key", "value"],
+        "properties": {
+          "memory_type": {"type": "string"},
+          "key": {"type": "string"},
+          "value": {"type": "string"}
+        }
+      }
+    }
+  }
+}

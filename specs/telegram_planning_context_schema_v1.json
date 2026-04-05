@@ -1,0 +1,36 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "PlanningContextInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["week_start", "inventory_snapshot"],
+  "properties": {
+    "week_start": {"type": "string"},
+    "days_unavailable": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["day", "note"],
+        "properties": {
+          "day": {"type": "string"},
+          "note": {"type": "string"}
+        }
+      }
+    },
+    "special_constraints": {
+      "type": "array",
+      "items": {"type": "string"}
+    },
+    "inventory_snapshot": {"type": "object"},
+    "recent_feedback": {
+      "type": "array",
+      "items": {"type": "object"}
+    },
+    "family_preferences": {"type": "object"}
+  }
+}
