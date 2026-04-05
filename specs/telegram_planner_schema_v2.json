@@ -1,0 +1,31 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "WeeklyPlannerOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["week_start", "use_first", "days"],
+  "properties": {
+    "week_start": {"type": "string"},
+    "use_first": {"type": "array", "items": {"type": "string"}},
+    "days": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["day"],
+        "properties": {
+          "day": {"type": "string"},
+          "toddler_lunch": {"type": ["string", "null"]},
+          "toddler_dinner": {"type": ["string", "null"]},
+          "adult_dinner": {"type": ["string", "null"]},
+          "leftover_plan": {"type": ["string", "null"]},
+          "thaw_plan": {"type": ["string", "null"]},
+          "freeze_plan": {"type": ["string", "null"]},
+          "notes": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "shopping_gaps": {"type": ["array", "null"], "items": {"type": "string"}},
+    "summary": {"type": ["string", "null"]}
+  }
+}

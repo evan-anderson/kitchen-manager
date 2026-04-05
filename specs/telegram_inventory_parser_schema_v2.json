@@ -1,0 +1,52 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "InventoryParserOutput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["should_ask_followup", "operations", "memory_updates"],
+  "properties": {
+    "should_ask_followup": {"type": "boolean"},
+    "followup_question": {"type": ["string", "null"]},
+    "operations": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["action", "item_raw"],
+        "properties": {
+          "action": {
+            "type": "string",
+            "enum": ["add", "use", "freeze", "thaw", "toss", "open", "low_stock", "set_quantity", "correct_item"]
+          },
+          "item_raw": {"type": "string"},
+          "item_canonical_guess": {"type": ["string", "null"]},
+          "location_guess": {
+            "type": ["string", "null"],
+            "enum": ["fridge", "freezer", "pantry", "counter", "unknown", null]
+          },
+          "quantity_value": {"type": ["number", "null"]},
+          "quantity_unit": {"type": ["string", "null"]},
+          "quantity_mode": {
+            "type": ["string", "null"],
+            "enum": ["exact", "approximate", "fraction", "all_remaining", "low", "unknown", null]
+          },
+          "approximate": {"type": ["boolean", "null"]},
+          "notes": {"type": ["string", "null"]}
+        }
+      }
+    },
+    "memory_updates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["memory_type", "key", "value"],
+        "properties": {
+          "memory_type": {"type": "string"},
+          "key": {"type": "string"},
+          "value": {"type": "string"}
+        }
+      }
+    }
+  }
+}
