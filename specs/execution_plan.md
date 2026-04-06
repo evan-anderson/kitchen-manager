@@ -47,46 +47,48 @@
 
 **Goal**: Users can ask what's in stock and bulk-add items by sending receipt photos.
 
-### 2.5a — Inventory Query Handler
+**Env vars required**: 2.5a–2.5d need `ANTHROPIC_API_KEY` + `GOOGLE_SERVICE_ACCOUNT_JSON` + `SPREADSHEET_ID` for integration testing / prompt tuning. 2.5e–2.5f are pure logic, no env vars needed.
 
-1. Implement `handle_query`: deterministic keyword match for tab selection (fridge/freezer/pantry), fall back to all tabs.
-2. Read matching inventory tabs from Sheets.
-3. Pass inventory snapshot + user question to LLM `respond()` with a query-specific system prompt.
-4. Return Telegram-friendly answer via `BotResponseOutput`.
+### 2.5a — Inventory Query Handler ✅
 
-### 2.5b — Receipt Image Ingestion
+1. ✅ Implement `handle_query`: deterministic keyword match for tab selection (fridge/freezer/pantry), fall back to all tabs.
+2. ✅ Read matching inventory tabs from Sheets.
+3. ✅ Pass inventory snapshot + user question to LLM `respond()` with a query-specific system prompt.
+4. ✅ Return Telegram-friendly answer via `BotResponseOutput`.
 
-1. Accept `message.photo` in the Telegram webhook (currently rejected with early return).
-2. Download largest photo size, base64-encode it.
-3. Send to Claude vision API with a receipt-specific parser prompt.
-4. Output: list of `InventoryOperation` items (reuse existing model).
+### 2.5b — Receipt Image Ingestion ✅
 
-### 2.5c — Receipt Abbreviation Resolution
+1. ✅ Accept `message.photo` in the Telegram webhook (currently rejected with early return).
+2. ✅ Download largest photo size, base64-encode it.
+3. ✅ Send to Claude vision API with a receipt-specific parser prompt.
+4. ✅ Output: list of `InventoryOperation` items (reuse existing model).
 
-1. Add `receipt_mappings` SQLite table: `(abbreviation TEXT, canonical_name TEXT, store TEXT, created_at TEXT)`.
-2. Before reconciliation, check receipt_mappings for known abbreviation→canonical mappings.
-3. Confidence-tiered resolution:
+### 2.5c — Receipt Abbreviation Resolution ✅
+
+1. ✅ Add `receipt_mappings` SQLite table: `(abbreviation TEXT, canonical_name TEXT, store TEXT, created_at TEXT)`.
+2. ✅ Before reconciliation, check receipt_mappings for known abbreviation→canonical mappings.
+3. ✅ Confidence-tiered resolution:
    - **High (fuzzy >= 85)**: auto-add, no friction.
    - **Medium (60-84)**: batch into a single confirmation message ("I think these are X, Y, Z. Sound right?").
    - **Low (< 60)**: ask user what the item is, then store the mapping for next time.
 
-### 2.5d — Batch Confirmation UX
+### 2.5d — Batch Confirmation UX ✅
 
-1. For medium/low confidence receipt items, send a single grouped confirmation message.
-2. Store pending receipt operations in `pending_clarifications` with `resolution_policy = 'receipt_confirm'`.
-3. On user confirmation, apply all operations to Sheets via the existing inventory handler.
-4. On timeout (15min), silently drop unconfirmed items.
+1. ✅ For medium/low confidence receipt items, send a single grouped confirmation message.
+2. Store pending receipt operations in `pending_clarifications` with `resolution_policy = 'receipt_confirm'`. *(deferred — depends on Phase 3 clarification manager)*
+3. On user confirmation, apply all operations to Sheets via the existing inventory handler. *(deferred — depends on Phase 3 clarification manager)*
+4. On timeout (15min), silently drop unconfirmed items. *(deferred — depends on Phase 3 clarification manager)*
 
 **Checkpoint**: Test with 3+ real Costco receipts. Verify abbreviation memory accumulates correctly.
 
-### 2.5e — Chat Allowlist
+### 2.5e — Chat Allowlist — no env vars needed
 
 1. Add `allowed_chat_ids: list[int] = []` to `config.py` (env var `ALLOWED_CHAT_IDS`).
 2. Check early in the webhook — if the list is non-empty and `chat_id` is not in it, silently return 200 with no processing.
 3. Empty list = open access (preserves dev/testing workflow).
 4. Log rejected chat IDs at WARNING level so new family members can be onboarded from logs.
 
-### 2.5f — Duplicate Addition Detection
+### 2.5f — Duplicate Addition Detection — no env vars needed
 
 1. Before applying an "add" operation, check if the same item was already added to the same tab within a configurable time window (default: 30 minutes).
 2. If a recent duplicate is found, ask for confirmation: "Chicken breast was added to the freezer 10 minutes ago. Add again?"
@@ -98,14 +100,16 @@
 
 ---
 
-## Phase 3 — Query + Correction + Clarification (~5 hrs)
+## Phase 3 — Correction + Clarification + Admin (~5 hrs)
 
 **Goal**: Multi-turn flows work cleanly.
 
-1. Implement query handler: normalize -> targeted Sheets read -> Sonnet responder.
-2. Implement correction handler: append to `corrections_log` -> recompute state -> sync Sheets.
-3. Implement clarification manager: state machine for `pending_clarifications`, expiry cron, `silent_drop` policy.
-4. Add admin commands: `/undo`, `/debug last`, `/state`, `/help`.
+**Env vars required**: Correction and clarification handlers are pure logic (no env vars needed for unit tests). Query handler already done in 2.5a. Admin commands are also pure logic.
+
+1. ✅ *(moved to 2.5a)* Implement query handler: normalize -> targeted Sheets read -> Sonnet responder.
+2. Implement correction handler: append to `corrections_log` -> recompute state -> sync Sheets. — **no env vars needed**
+3. Implement clarification manager: state machine for `pending_clarifications`, expiry cron, `silent_drop` policy. — **no env vars needed**
+4. Add admin commands: `/undo`, `/debug last`, `/state`, `/help`. — **no env vars needed**
 5. Expand test fixtures to 20+ messages covering query/correction/clarification paths.
 
 **Checkpoint**: Family joins. Collect 1 week of real usage.
@@ -113,6 +117,8 @@
 ## Phase 4 — Weekly Planner (~4 hrs)
 
 **Goal**: Saturday 7am meal plan message arrives reliably.
+
+**Env vars required**: Yes — `ANTHROPIC_API_KEY` + `GOOGLE_SERVICE_ACCOUNT_JSON` + `SPREADSHEET_ID` needed for prompt tuning and integration testing. APScheduler wiring and `/plan` command structure are buildable without env vars, but the planner output quality requires real LLM calls to iterate.
 
 1. Implement planning context assembler (pulls from Sheets inventory + SQLite feedback + hardcoded family prefs for v0).
 2. Implement planner (Sonnet) with planning context + planner output schemas.
@@ -127,12 +133,14 @@
 
 **Goal**: Production-ready operational posture.
 
-1. Implement daily cost ceiling check (token accounting in SQLite).
-2. Implement rate limiting per chat.
-3. Implement trace retention cron (30-day window, nightly cleanup).
-4. Implement webhook timeout protection (30s on LLM calls).
+**Env vars required**: Rate limiting, trace retention, and cost ceiling are pure logic (no env vars). Ops dashboard needs real SQLite data to be useful. Webhook timeout is pure logic.
+
+1. ✅ Implement daily cost ceiling check (token accounting in SQLite).
+2. Implement rate limiting per chat. — **no env vars needed**
+3. Implement trace retention cron (30-day window, nightly cleanup). — **no env vars needed**
+4. Implement webhook timeout protection (30s on LLM calls). — **no env vars needed**
 5. Add `trace_events` logging at every stage (router, parser, validator, response).
-6. Write a weekly ops dashboard script: spend, error rate, top correction patterns, top ambiguous parses.
+6. Write a weekly ops dashboard script: spend, error rate, top correction patterns, top ambiguous parses. — **needs real SQLite data**
 
 **Checkpoint**: 2 weeks of clean operation.
 
