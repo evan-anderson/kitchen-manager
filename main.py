@@ -113,6 +113,9 @@ async def telegram_webhook(
     if not chat_id:
         return {"ok": True}
 
+    msg_type = "photo" if photo_list else "text"
+    logger.info("Incoming %s from chat %s (update %s)", msg_type, chat_id, update_id)
+
     # --- Allowlist check ---
     if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
         logger.warning("Chat %s not in allowed_chat_ids — ignoring update %s", chat_id, update_id)
