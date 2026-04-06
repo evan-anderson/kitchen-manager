@@ -15,6 +15,7 @@ import telegram
 from fastapi import Depends, FastAPI, Request
 
 from config import settings
+from handlers.rate_limiter import get_rate_limiter
 from handlers.receipt import handle_receipt_photo
 from routers.intent_router import route
 from services import get_llm_client, get_sheets_client
@@ -115,6 +116,20 @@ async def telegram_webhook(
     # --- Allowlist check ---
     if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
         logger.warning("Chat %s not in allowed_chat_ids — ignoring update %s", chat_id, update_id)
+        return {"ok": True}
+
+    # --- Rate limiting ---
+    limiter = get_rate_limiter()
+    if not limiter.is_allowed(chat_id):
+        logger.warning("Rate limit exceeded for chat %s on update %s", chat_id, update_id)
+        if bot:
+            try:
+                await bot.send_message(
+                    chat_id=chat_id,
+                    text="Slow down! Please wait a moment before sending more messages.",
+                )
+            except Exception as exc:
+                logger.error("Failed to send rate limit message: %s", exc)
         return {"ok": True}
 
     # --- Idempotency ---

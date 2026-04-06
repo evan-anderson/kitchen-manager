@@ -120,6 +120,28 @@ async def test_cost_ceiling_blocks_processing(client):
     assert "budget" in call_kwargs.get("text", "").lower()
 
 
+async def test_rate_limit_blocks_excess_messages(client):
+    """Exceeding rate limit should return a 'slow down' message."""
+    c, mock_bot = client
+    from handlers.rate_limiter import get_rate_limiter
+    limiter = get_rate_limiter()
+    original_max = limiter._max
+    try:
+        limiter._max = 1  # allow only 1 per minute
+        limiter.reset()
+        with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response()):
+            # First message goes through
+            await c.post("/telegram-webhook", json=_make_update(update_id=7001))
+            # Second message should be rate limited
+            await c.post("/telegram-webhook", json=_make_update(update_id=7002))
+        # Last send_message call should be the rate limit message
+        last_call = mock_bot.send_message.call_args_list[-1]
+        assert "slow down" in last_call.kwargs.get("text", "").lower()
+    finally:
+        limiter._max = original_max
+        limiter.reset()
+
+
 # ------------------------------------------------------------------
 # Error handling
 # ------------------------------------------------------------------
