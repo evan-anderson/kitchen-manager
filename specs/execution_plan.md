@@ -137,7 +137,7 @@
 
 1. ✅ Implement daily cost ceiling check (token accounting in SQLite).
 2. ✅ Implement rate limiting per chat. — **no env vars needed**
-3. Implement trace retention cron (30-day window, nightly cleanup). — **no env vars needed**
+3. ✅ Implement trace retention cron (30-day window, nightly cleanup). — **no env vars needed**
 4. Implement webhook timeout protection (30s on LLM calls). — **no env vars needed**
 5. Add `trace_events` logging at every stage (router, parser, validator, response).
 6. Write a weekly ops dashboard script: spend, error rate, top correction patterns, top ambiguous parses. — **needs real SQLite data**

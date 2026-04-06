@@ -340,6 +340,39 @@ async def cleanup_old_adds(max_age_hours: int = 24, db_path: str | None = None) 
         await db.commit()
 
 
+async def cleanup_old_traces(max_age_days: int = 30, db_path: str | None = None) -> int:
+    """Delete trace_events older than max_age_days. Returns count deleted."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        cursor = await db.execute("DELETE FROM trace_events WHERE created_at < ?", (cutoff,))
+        await db.commit()
+        return cursor.rowcount
+
+
+async def cleanup_old_token_spend(max_age_days: int = 90, db_path: str | None = None) -> int:
+    """Delete daily_token_spend records older than max_age_days. Returns count deleted."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=max_age_days)).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        cursor = await db.execute("DELETE FROM daily_token_spend WHERE date < ?", (cutoff,))
+        await db.commit()
+        return cursor.rowcount
+
+
+async def run_nightly_cleanup(db_path: str | None = None) -> dict[str, int]:
+    """Run all cleanup tasks. Returns counts of deleted records."""
+    traces = await cleanup_old_traces(max_age_days=30, db_path=db_path)
+    adds = 0
+    # cleanup_old_adds doesn't return a count, so we handle it separately
+    await cleanup_old_adds(max_age_hours=24, db_path=db_path)
+    expired = await expire_old_clarifications(db_path=db_path)
+    spend = await cleanup_old_token_spend(max_age_days=90, db_path=db_path)
+    return {
+        "traces_deleted": traces,
+        "clarifications_expired": expired,
+        "token_spend_deleted": spend,
+    }
+
+
 async def get_today_spend(db_path: str | None = None) -> float:
     """Return today's estimated USD spend (0.0 if no record yet)."""
     date = datetime.now(timezone.utc).date().isoformat()

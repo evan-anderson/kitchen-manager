@@ -8,6 +8,8 @@ import pytest
 
 from storage.sqlite import (
     cleanup_old_adds,
+    cleanup_old_token_spend,
+    cleanup_old_traces,
     create_pending_clarification,
     expire_old_clarifications,
     find_recent_add,
@@ -22,6 +24,7 @@ from storage.sqlite import (
     record_token_spend,
     record_update,
     resolve_clarification,
+    run_nightly_cleanup,
     save_receipt_mapping,
     upsert_chat_state,
 )
@@ -403,3 +406,46 @@ async def test_context_json_stored(db_path):
     result = await get_active_clarification(200, db_path=db_path)
     assert result is not None
     assert result["context_json"] == '{"original_message": "added chicken"}'
+
+
+# ------------------------------------------------------------------
+# cleanup / retention
+# ------------------------------------------------------------------
+
+
+async def test_cleanup_old_traces(db_path):
+    await log_trace("old-trace", "test", "stage", db_path=db_path)
+    # With 0 days retention, everything gets cleaned
+    count = await cleanup_old_traces(max_age_days=0, db_path=db_path)
+    assert count == 1
+
+
+async def test_cleanup_old_traces_keeps_recent(db_path):
+    await log_trace("recent-trace", "test", "stage", db_path=db_path)
+    count = await cleanup_old_traces(max_age_days=30, db_path=db_path)
+    assert count == 0  # just created, should be kept
+
+
+async def test_cleanup_old_token_spend(db_path):
+    await record_token_spend(100, 50, 0.01, db_path=db_path)
+    # With 0 days retention, everything gets cleaned
+    count = await cleanup_old_token_spend(max_age_days=0, db_path=db_path)
+    assert count == 1
+
+
+async def test_run_nightly_cleanup(db_path):
+    await log_trace("t1", "test", "stage", db_path=db_path)
+    await record_recent_add(123, "milk", "fridge", db_path=db_path)
+    await create_pending_clarification(
+        clarification_id="clar-cleanup",
+        chat_id=123,
+        user_id=123,
+        original_update_id="upd-0",
+        question_text="Which?",
+        expiry_minutes=0,
+        db_path=db_path,
+    )
+    result = await run_nightly_cleanup(db_path=db_path)
+    assert "traces_deleted" in result
+    assert "clarifications_expired" in result
+    assert result["clarifications_expired"] == 1
