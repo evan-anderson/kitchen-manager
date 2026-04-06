@@ -46,4 +46,5 @@ Each inventory tab has columns: item, quantity, unit, added_date, notes.
 - **Inventory queries** -- "what's in the freezer?" / "do we have eggs?"
 - **Corrections** -- "actually that was 3 lbs not 2"
 - **Weekly meal plans** -- automatic Saturday morning meal plan + grocery list for Costco
+- **Receipt scanning** -- snap a photo of your receipt to bulk-add items
 - **Feedback tracking** -- "the kids loved the pasta" / "too much garlic last time"
