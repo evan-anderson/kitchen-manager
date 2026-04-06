@@ -37,8 +37,25 @@ class TestRoute:
     @pytest.mark.asyncio
     async def test_query_dispatch(self, db_path, mock_llm, mock_sheets):
         mock_llm.classify_intent.return_value = (_classification("query"), 0.001)
-        result = await route("what's in the fridge?", 123, "upd-2", mock_llm, mock_sheets)
-        assert result.message_type == "query_answer"
+        with patch("routers.intent_router.handle_query") as mock_handler:
+            from models.bot_response import BotResponseOutput
+            mock_handler.return_value = BotResponseOutput(
+                message_type="query_answer",
+                summary="You have milk in the fridge.",
+                trace_id="test-trace",
+            )
+            result = await route("what's in the fridge?", 123, "upd-2", mock_llm, mock_sheets)
+            mock_handler.assert_called_once_with(
+                "what's in the fridge?", 123, "upd-2", mock_llm, mock_sheets
+            )
+            assert result.message_type == "query_answer"
+
+    @pytest.mark.asyncio
+    async def test_query_no_sheets_returns_error(self, db_path, mock_llm):
+        mock_llm.classify_intent.return_value = (_classification("query"), 0.001)
+        result = await route("what's in the fridge?", 123, "upd-2b", mock_llm, None)
+        assert result.message_type == "error"
+        assert "not configured" in result.summary.lower()
 
     @pytest.mark.asyncio
     async def test_unclear_dispatch(self, db_path, mock_llm, mock_sheets):

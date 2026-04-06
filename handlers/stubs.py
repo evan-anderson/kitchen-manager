@@ -22,17 +22,6 @@ async def handle_chitchat(message: str, chat_id: int, update_id: str) -> BotResp
     )
 
 
-async def handle_query(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
-    return BotResponseOutput(
-        message_type="query_answer",
-        summary=(
-            "Inventory queries are coming soon! For now, you can check "
-            "the Google Sheet directly for current inventory."
-        ),
-        trace_id=str(uuid.uuid4()),
-    )
-
-
 async def handle_correction(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
     return BotResponseOutput(
         message_type="meta_response",
