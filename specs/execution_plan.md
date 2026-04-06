@@ -79,7 +79,9 @@
 3. On user confirmation, apply all operations to Sheets via the existing inventory handler. *(deferred — depends on Phase 3 clarification manager)*
 4. On timeout (15min), silently drop unconfirmed items. *(deferred — depends on Phase 3 clarification manager)*
 
-**Checkpoint**: Test with 3+ real Costco receipts. Verify abbreviation memory accumulates correctly.
+**Note**: Receipt parsing `max_tokens` was increased from 2048 to 8192 after integration testing revealed that long Costco receipts truncated the structured JSON output, causing silent parse failures.
+
+**Checkpoint**: Test with 3+ real Costco receipts. Verify abbreviation memory accumulates correctly. One real Costco receipt integration test exists in `tests/fixtures/costco_receipt.jpg`.
 
 ### 2.5e — Chat Allowlist ✅ — no env vars needed
 
@@ -139,10 +141,18 @@
 2. ✅ Implement rate limiting per chat. — **no env vars needed**
 3. ✅ Implement trace retention cron (30-day window, nightly cleanup). — **no env vars needed**
 4. Implement webhook timeout protection (30s on LLM calls). — **no env vars needed**
-5. Add `trace_events` logging at every stage (router, parser, validator, response).
+5. Add `trace_events` logging at every stage (router, parser, validator, response). — partially done, traces logged in receipt and correction handlers
 6. Write a weekly ops dashboard script: spend, error rate, top correction patterns, top ambiguous parses. — **needs real SQLite data**
 
 **Checkpoint**: 2 weeks of clean operation.
+
+### Integration Test Coverage
+
+- ✅ Intent classification (inventory, chitchat, query)
+- ✅ Full inventory pipeline (add, use, cross-tab, multi-item)
+- ✅ Router end-to-end (inventory + chitchat dispatch)
+- ✅ Receipt vision parsing (real Costco receipt image)
+- Integration tests use a dedicated test spreadsheet (`TEST_SPREADSHEET_ID`) to avoid polluting production data.
 
 ---
 

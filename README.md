@@ -41,10 +41,41 @@ Each inventory tab has columns: item, quantity, unit, added_date, notes.
 | Open | "opened the cream cheese" |
 | Low stock | "we're almost out of milk" |
 
+**Ask questions** -- check what you have without opening the spreadsheet:
+- "what's in the freezer?"
+- "do we have eggs?"
+- "how much rice is left?"
+
+Queries are tab-aware -- ask about a specific location or search everything at once.
+
+**Scan receipts** -- snap a photo of your grocery receipt and the bot will extract items automatically. It decodes common store abbreviations (KS = Kirkland Signature, ORG = organic, etc.) and learns new ones over time. High-confidence items are auto-added; anything unclear gets flagged for confirmation.
+
+**Make corrections** -- fix mistakes without starting over:
+- "actually that was 3 lbs not 2"
+- "move the chicken to the freezer"
+- "that should be cheddar cheese, not mozzarella"
+
+**Clarifications** -- if the bot isn't sure what you mean, it asks a follow-up question. Reply within 15 minutes and it picks up where it left off.
+
+**Duplicate detection** -- if you accidentally add something twice, the bot warns you before creating a duplicate entry.
+
+## Admin commands
+
+| Command | What it does |
+|---------|-------------|
+| /help | List available commands |
+| /undo | Show the last inventory operation (admin only) |
+| /debug | Show recent trace events (admin only) |
+| /state | Show today's token spend and system stats (admin only) |
+
+## Guardrails
+
+- **Daily cost ceiling** -- stops processing if API costs exceed the daily budget
+- **Rate limiting** -- per-chat message throttling to prevent runaway usage
+- **Chat allowlist** -- optionally restrict which Telegram chats can use the bot
+- **Nightly cleanup** -- automatically prunes old traces and token spend records
+
 ## Coming soon
 
-- **Inventory queries** -- "what's in the freezer?" / "do we have eggs?"
-- **Corrections** -- "actually that was 3 lbs not 2"
 - **Weekly meal plans** -- automatic Saturday morning meal plan + grocery list for Costco
-- **Receipt scanning** -- snap a photo of your receipt to bulk-add items
 - **Feedback tracking** -- "the kids loved the pasta" / "too much garlic last time"

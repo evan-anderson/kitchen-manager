@@ -5,14 +5,16 @@ Run with: uv run pytest tests/test_integration.py -m integration
 Skip in normal runs: uv run pytest -m "not integration"
 
 These tests require ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, and
-SPREADSHEET_ID to be set in .env. They also need a local DATABASE_PATH
+TEST_SPREADSHEET_ID to be set in .env. They also need a local DATABASE_PATH
 (defaults to data/kitchen.db).
 """
 
 from __future__ import annotations
 
 import asyncio
+import base64
 import os
+from pathlib import Path
 import uuid
 
 import pytest
@@ -23,8 +25,8 @@ from config import settings
 pytestmark = [
     pytest.mark.integration,
     pytest.mark.skipif(
-        not settings.anthropic_api_key or not settings.google_service_account_json,
-        reason="Integration credentials not configured",
+        not settings.anthropic_api_key or not settings.google_service_account_json or not settings.test_spreadsheet_id,
+        reason="Integration credentials not configured (need ANTHROPIC_API_KEY, GOOGLE_SERVICE_ACCOUNT_JSON, TEST_SPREADSHEET_ID)",
     ),
 ]
 
@@ -40,7 +42,7 @@ def event_loop():
 def sheets():
     from storage.sheets import SheetsClient
 
-    return SheetsClient(settings.google_service_account_json, settings.spreadsheet_id)
+    return SheetsClient(settings.google_service_account_json, settings.test_spreadsheet_id)
 
 
 @pytest.fixture(scope="module")
@@ -184,3 +186,49 @@ class TestRouter:
         assert response.message_type in ("meta_response", "confirmation")
         # Should not crash, should return something friendly
         assert len(response.summary) > 0
+
+
+# ------------------------------------------------------------------
+# Receipt parsing (vision API)
+# ------------------------------------------------------------------
+
+RECEIPT_PATH = Path(__file__).parent / "fixtures" / "costco_receipt.jpg"
+
+
+class TestReceiptParsing:
+    @pytest.mark.skipif(not RECEIPT_PATH.exists(), reason="No test receipt image")
+    async def test_parse_costco_receipt(self, llm, sheets):
+        """Send a real Costco receipt through the vision parser and verify results."""
+        image_bytes = RECEIPT_PATH.read_bytes()
+        image_b64 = base64.b64encode(image_bytes).decode("ascii")
+        canonical_items = await sheets.get_canonical_items()
+
+        parsed, cost = await llm.parse_receipt(
+            image_b64, "image/jpeg", canonical_items,
+        )
+
+        assert cost > 0, "Should report token cost"
+        assert len(parsed.operations) >= 5, (
+            f"Costco receipt should have many items, got {len(parsed.operations)}"
+        )
+
+        # Every operation should be an add with some item text
+        for op in parsed.operations:
+            assert op.action == "add"
+            assert op.item_raw, "item_raw should not be empty"
+
+        # Spot-check: receipt visibly contains milk, eggs, and strawberries
+        raw_items = " ".join(op.item_raw.lower() for op in parsed.operations)
+        guessed_items = " ".join(
+            (op.item_canonical_guess or "").lower() for op in parsed.operations
+        )
+        all_text = raw_items + " " + guessed_items
+
+        found = [
+            item for item in ["milk", "egg", "strawberr"]
+            if item in all_text
+        ]
+        assert len(found) >= 2, (
+            f"Expected at least 2 of milk/egg/strawberry, found: {found}. "
+            f"Parsed items: {raw_items}"
+        )

@@ -218,7 +218,7 @@ class LLMClient:
 
         result = await self._client.messages.parse(
             model=settings.main_model,
-            max_tokens=2048,
+            max_tokens=8192,
             thinking={"type": "adaptive"},
             system=system,
             messages=[{"role": "user", "content": user_content}],
