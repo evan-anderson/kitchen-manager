@@ -86,8 +86,24 @@ class TestRoute:
     @pytest.mark.asyncio
     async def test_correction_dispatch(self, db_path, mock_llm, mock_sheets):
         mock_llm.classify_intent.return_value = (_classification("correction"), 0.001)
-        result = await route("actually that was 3 lbs not 2", 123, "upd-7", mock_llm, mock_sheets)
-        assert "coming soon" in result.summary.lower()
+        with patch("routers.intent_router.handle_correction") as mock_handler:
+            from models.bot_response import BotResponseOutput
+            mock_handler.return_value = BotResponseOutput(
+                message_type="confirmation",
+                summary="Got it — corrected ground beef to 3 in freezer.",
+                trace_id="test-trace",
+            )
+            result = await route("actually that was 3 lbs not 2", 123, "upd-7", mock_llm, mock_sheets)
+            mock_handler.assert_called_once_with(
+                "actually that was 3 lbs not 2", 123, "upd-7", mock_llm, mock_sheets
+            )
+            assert result.message_type == "confirmation"
+
+    @pytest.mark.asyncio
+    async def test_correction_no_sheets_returns_error(self, db_path, mock_llm):
+        mock_llm.classify_intent.return_value = (_classification("correction"), 0.001)
+        result = await route("actually that was 3 lbs", 123, "upd-7b", mock_llm, None)
+        assert result.message_type == "error"
 
     @pytest.mark.asyncio
     async def test_clarification_dispatch(self, db_path, mock_llm, mock_sheets):

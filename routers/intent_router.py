@@ -14,12 +14,12 @@ import json
 import logging
 import uuid
 
+from handlers.correction import handle_correction
 from handlers.inventory import handle_inventory_change
 from handlers.query import handle_query
 from handlers.stubs import (
     handle_chitchat,
     handle_clarification,
-    handle_correction,
     handle_feedback,
     handle_meta,
     handle_plan_request,
@@ -85,7 +85,13 @@ async def route(
         return await handle_query(message, chat_id, update_id, llm, sheets)
 
     if intent == "correction":
-        return await handle_correction(message, chat_id, update_id)
+        if sheets is None:
+            return BotResponseOutput(
+                message_type="error",
+                summary="Google Sheets is not configured. I can't process corrections right now.",
+                trace_id=trace_id,
+            )
+        return await handle_correction(message, chat_id, update_id, llm, sheets)
 
     if intent == "clarification":
         return await handle_clarification(message, chat_id, update_id)

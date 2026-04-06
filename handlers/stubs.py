@@ -22,17 +22,6 @@ async def handle_chitchat(message: str, chat_id: int, update_id: str) -> BotResp
     )
 
 
-async def handle_correction(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
-    return BotResponseOutput(
-        message_type="meta_response",
-        summary=(
-            "Corrections are coming soon. For now, you can edit the "
-            "Google Sheet directly to fix any mistakes."
-        ),
-        trace_id=str(uuid.uuid4()),
-    )
-
-
 async def handle_clarification(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
     return BotResponseOutput(
         message_type="meta_response",

@@ -15,6 +15,7 @@ import anthropic
 
 from config import settings
 from models.intent import IntentClassifierOutput
+from models.correction import CorrectionParserOutput
 from models.inventory import InventoryParserOutput
 from models.feedback import FeedbackParserOutput
 from models.planner import WeeklyPlannerOutput, PlanningContextInput
@@ -102,6 +103,35 @@ class LLMClient:
             system=system,
             messages=[{"role": "user", "content": user_content}],
             output_format=InventoryParserOutput,
+        )
+        cost = _estimate_cost(
+            settings.main_model,
+            result.usage.input_tokens,
+            result.usage.output_tokens,
+        )
+        return result.parsed_output, cost
+
+    # ------------------------------------------------------------------
+    # Correction parser
+    # ------------------------------------------------------------------
+
+    async def parse_correction(
+        self,
+        message: str,
+        canonical_items: list[str],
+    ) -> tuple[CorrectionParserOutput, float]:
+        """Parse a correction message into structured correction data."""
+        system = _load_prompt("correction_parser")
+        canonical_str = ", ".join(canonical_items[:200])
+        user_content = f"Canonical items: {canonical_str}\n\nUser message: {message}"
+
+        result = await self._client.messages.parse(
+            model=settings.main_model,
+            max_tokens=512,
+            thinking={"type": "adaptive"},
+            system=system,
+            messages=[{"role": "user", "content": user_content}],
+            output_format=CorrectionParserOutput,
         )
         cost = _estimate_cost(
             settings.main_model,
