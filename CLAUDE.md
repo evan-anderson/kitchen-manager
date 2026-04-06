@@ -2,6 +2,10 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## Privacy
+
+- **Never use real family member names** in code, comments, docs, commit messages, or test fixtures. Use generic terms like "household member", "family", "user", or "adult"/"toddler" roles instead.
+
 ## Project Overview
 
 Telegram bot acting as a family kitchen assistant. Tracks pantry/fridge/freezer inventory via natural-language messages, answers inventory questions, and generates a weekly meal plan + grocery list every Saturday morning for Costco shopping.

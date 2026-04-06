@@ -79,6 +79,23 @@
 
 **Checkpoint**: Test with 3+ real Costco receipts. Verify abbreviation memory accumulates correctly.
 
+### 2.5e — Chat Allowlist
+
+1. Add `allowed_chat_ids: list[int] = []` to `config.py` (env var `ALLOWED_CHAT_IDS`).
+2. Check early in the webhook — if the list is non-empty and `chat_id` is not in it, silently return 200 with no processing.
+3. Empty list = open access (preserves dev/testing workflow).
+4. Log rejected chat IDs at WARNING level so new family members can be onboarded from logs.
+
+### 2.5f — Duplicate Addition Detection
+
+1. Before applying an "add" operation, check if the same item was already added to the same tab within a configurable time window (default: 30 minutes).
+2. If a recent duplicate is found, ask for confirmation: "Chicken breast was added to the freezer 10 minutes ago. Add again?"
+3. Use `trace_events` or a lightweight lookup against Sheets `added_date` + item name to detect duplicates.
+4. Bypass duplicate check when the add came from a receipt (bulk adds are intentional).
+5. This guards against two household members reporting the same grocery trip independently.
+
+**Checkpoint**: Verify duplicate detection with realistic scenarios (same item from two phones, receipt + manual, intentional double-buy).
+
 ---
 
 ## Phase 3 — Query + Correction + Clarification (~5 hrs)
