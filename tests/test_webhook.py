@@ -191,6 +191,34 @@ async def test_webhook_malformed_json(client):
     assert resp.status_code == 200
 
 
+async def test_webhook_photo_routes_to_receipt_handler(client):
+    """Photo messages should be routed to the receipt handler, not the text router."""
+    c, mock_bot = client
+    update = {
+        "update_id": 3333,
+        "message": {
+            "message_id": 1,
+            "from": {"id": 1, "first_name": "TestUser", "is_bot": False},
+            "chat": {"id": 1, "type": "private"},
+            "photo": [
+                {"file_id": "small_id", "width": 90, "height": 90, "file_size": 1000},
+                {"file_id": "large_id", "width": 800, "height": 600, "file_size": 50000},
+            ],
+            "date": 1700000000,
+        },
+    }
+    with patch("main.handle_receipt_photo", new_callable=AsyncMock) as mock_receipt, \
+         patch("main.get_sheets_client", return_value=AsyncMock()):
+        mock_receipt.return_value = _mock_route_response("Added 3 items from receipt")
+        resp = await c.post("/telegram-webhook", json=update)
+    assert resp.status_code == 200
+    mock_receipt.assert_awaited_once()
+    # Should use the largest photo (last in list)
+    assert mock_receipt.call_args[0][0] == "large_id"
+    call_kwargs = mock_bot.send_message.call_args.kwargs
+    assert "3 items" in call_kwargs.get("text", "")
+
+
 async def test_different_updates_are_all_recorded(client, db_path):
     c, _ = client
     from storage.sqlite import is_duplicate
