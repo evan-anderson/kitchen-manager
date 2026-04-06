@@ -26,7 +26,8 @@ CREATE TABLE IF NOT EXISTS pending_clarifications (
     created_at           TEXT NOT NULL,
     expires_at           TEXT NOT NULL,
     resolution_policy    TEXT NOT NULL DEFAULT 'silent_drop',
-    expiry_action_taken  TEXT
+    expiry_action_taken  TEXT,
+    context_json         TEXT
 );
 
 CREATE TABLE IF NOT EXISTS chat_state (
@@ -173,6 +174,77 @@ async def record_token_spend(
             (date, input_tokens, output_tokens, estimated_cost_usd),
         )
         await db.commit()
+
+
+async def create_pending_clarification(
+    clarification_id: str,
+    chat_id: int,
+    user_id: int,
+    original_update_id: str,
+    question_text: str,
+    context_json: str | None = None,
+    resolution_policy: str = "silent_drop",
+    expiry_minutes: int = 15,
+    db_path: str | None = None,
+) -> None:
+    """Store a pending clarification question."""
+    now = datetime.now(timezone.utc)
+    created_at = now.isoformat()
+    expires_at = (now + timedelta(minutes=expiry_minutes)).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        await db.execute(
+            """INSERT OR REPLACE INTO pending_clarifications
+               (clarification_id, chat_id, user_id, original_update_id,
+                question_text, state, created_at, expires_at,
+                resolution_policy, context_json)
+               VALUES (?, ?, ?, ?, ?, 'open', ?, ?, ?, ?)""",
+            (clarification_id, chat_id, user_id, original_update_id,
+             question_text, created_at, expires_at, resolution_policy, context_json),
+        )
+        await db.commit()
+
+
+async def get_active_clarification(
+    chat_id: int, db_path: str | None = None
+) -> dict | None:
+    """Get the most recent open (non-expired) clarification for a chat."""
+    now = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        db.row_factory = aiosqlite.Row
+        async with db.execute(
+            """SELECT * FROM pending_clarifications
+               WHERE chat_id = ? AND state = 'open' AND expires_at > ?
+               ORDER BY created_at DESC LIMIT 1""",
+            (chat_id, now),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return dict(row) if row else None
+
+
+async def resolve_clarification(
+    clarification_id: str, resolution: str = "resolved", db_path: str | None = None
+) -> None:
+    """Mark a clarification as resolved."""
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        await db.execute(
+            "UPDATE pending_clarifications SET state = ?, expiry_action_taken = ? WHERE clarification_id = ?",
+            (resolution, resolution, clarification_id),
+        )
+        await db.commit()
+
+
+async def expire_old_clarifications(db_path: str | None = None) -> int:
+    """Expire all open clarifications past their expires_at. Returns count expired."""
+    now = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        cursor = await db.execute(
+            """UPDATE pending_clarifications
+               SET state = 'expired', expiry_action_taken = 'silent_drop'
+               WHERE state = 'open' AND expires_at <= ?""",
+            (now,),
+        )
+        await db.commit()
+        return cursor.rowcount
 
 
 async def get_receipt_mapping(

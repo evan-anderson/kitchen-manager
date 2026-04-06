@@ -108,7 +108,17 @@ class TestRoute:
     @pytest.mark.asyncio
     async def test_clarification_dispatch(self, db_path, mock_llm, mock_sheets):
         mock_llm.classify_intent.return_value = (_classification("clarification"), 0.001)
-        result = await route("the chicken", 123, "upd-8", mock_llm, mock_sheets)
+        with patch("routers.intent_router.handle_clarification") as mock_handler:
+            from models.bot_response import BotResponseOutput
+            mock_handler.return_value = BotResponseOutput(
+                message_type="meta_response",
+                summary="I'm not sure what you're referring to. Could you try rephrasing?",
+                trace_id="test-trace",
+            )
+            result = await route("the chicken", 123, "upd-8", mock_llm, mock_sheets)
+            mock_handler.assert_called_once_with(
+                "the chicken", 123, "upd-8", mock_llm, mock_sheets
+            )
         assert "rephras" in result.summary.lower()
 
     @pytest.mark.asyncio

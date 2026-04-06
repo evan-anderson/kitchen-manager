@@ -16,7 +16,13 @@ from llm.client import LLMClient
 from models.bot_response import BotResponseOutput
 from models.inventory import InventoryOperation, InventoryParserOutput
 from storage.sheets import SheetsClient
-from storage.sqlite import find_recent_add, log_trace, record_recent_add, record_token_spend
+from storage.sqlite import (
+    create_pending_clarification,
+    find_recent_add,
+    log_trace,
+    record_recent_add,
+    record_token_spend,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,12 +64,23 @@ async def handle_inventory_change(
     await log_trace(trace_id, "inventory", "parsed", update_id,
                     json.dumps({"operations": len(parsed.operations), "cost": cost}))
 
-    # 3. If LLM wants to ask a followup, return that directly
+    # 3. If LLM wants to ask a followup, store pending clarification and return
     if parsed.should_ask_followup and parsed.followup_question:
+        clarification_id = str(uuid.uuid4())
+        context = json.dumps({"original_message": message})
+        await create_pending_clarification(
+            clarification_id=clarification_id,
+            chat_id=chat_id,
+            user_id=chat_id,  # user_id == chat_id for private chats
+            original_update_id=update_id,
+            question_text=parsed.followup_question,
+            context_json=context,
+        )
         return BotResponseOutput(
             message_type="clarification_question",
             summary=parsed.followup_question,
-            details={"operations_so_far": len(parsed.operations)},
+            details={"operations_so_far": len(parsed.operations),
+                     "clarification_id": clarification_id},
             trace_id=trace_id,
         )
 

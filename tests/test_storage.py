@@ -8,7 +8,10 @@ import pytest
 
 from storage.sqlite import (
     cleanup_old_adds,
+    create_pending_clarification,
+    expire_old_clarifications,
     find_recent_add,
+    get_active_clarification,
     get_all_receipt_mappings,
     get_receipt_mapping,
     get_today_spend,
@@ -18,6 +21,7 @@ from storage.sqlite import (
     record_recent_add,
     record_token_spend,
     record_update,
+    resolve_clarification,
     save_receipt_mapping,
     upsert_chat_state,
 )
@@ -315,3 +319,87 @@ async def test_cleanup_old_adds(db_path):
     await cleanup_old_adds(max_age_hours=0, db_path=db_path)
     result = await find_recent_add("old item", "fridge", db_path=db_path)
     assert result is None
+
+
+# ------------------------------------------------------------------
+# pending_clarifications
+# ------------------------------------------------------------------
+
+
+async def test_create_and_get_active_clarification(db_path):
+    await create_pending_clarification(
+        clarification_id="clar-1",
+        chat_id=123,
+        user_id=123,
+        original_update_id="upd-1",
+        question_text="Where did you put it?",
+        db_path=db_path,
+    )
+    result = await get_active_clarification(123, db_path=db_path)
+    assert result is not None
+    assert result["clarification_id"] == "clar-1"
+    assert result["question_text"] == "Where did you put it?"
+    assert result["state"] == "open"
+
+
+async def test_get_active_clarification_returns_none_when_empty(db_path):
+    result = await get_active_clarification(999, db_path=db_path)
+    assert result is None
+
+
+async def test_resolve_clarification(db_path):
+    await create_pending_clarification(
+        clarification_id="clar-2",
+        chat_id=456,
+        user_id=456,
+        original_update_id="upd-2",
+        question_text="Which one?",
+        db_path=db_path,
+    )
+    await resolve_clarification("clar-2", db_path=db_path)
+    # Should no longer be active
+    result = await get_active_clarification(456, db_path=db_path)
+    assert result is None
+
+
+async def test_expired_clarification_not_active(db_path):
+    await create_pending_clarification(
+        clarification_id="clar-3",
+        chat_id=789,
+        user_id=789,
+        original_update_id="upd-3",
+        question_text="Fridge or freezer?",
+        expiry_minutes=0,  # expires immediately
+        db_path=db_path,
+    )
+    result = await get_active_clarification(789, db_path=db_path)
+    assert result is None
+
+
+async def test_expire_old_clarifications(db_path):
+    await create_pending_clarification(
+        clarification_id="clar-4",
+        chat_id=100,
+        user_id=100,
+        original_update_id="upd-4",
+        question_text="What is it?",
+        expiry_minutes=0,
+        db_path=db_path,
+    )
+    count = await expire_old_clarifications(db_path=db_path)
+    assert count == 1
+
+
+async def test_context_json_stored(db_path):
+    await create_pending_clarification(
+        clarification_id="clar-5",
+        chat_id=200,
+        user_id=200,
+        original_update_id="upd-5",
+        question_text="Where?",
+        context_json='{"original_message": "added chicken"}',
+        db_path=db_path,
+    )
+    result = await get_active_clarification(200, db_path=db_path)
+    assert result is not None
+    assert result["context_json"] == '{"original_message": "added chicken"}'

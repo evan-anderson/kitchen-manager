@@ -14,12 +14,12 @@ import json
 import logging
 import uuid
 
+from handlers.clarification import handle_clarification
 from handlers.correction import handle_correction
 from handlers.inventory import handle_inventory_change
 from handlers.query import handle_query
 from handlers.stubs import (
     handle_chitchat,
-    handle_clarification,
     handle_feedback,
     handle_meta,
     handle_plan_request,
@@ -94,7 +94,7 @@ async def route(
         return await handle_correction(message, chat_id, update_id, llm, sheets)
 
     if intent == "clarification":
-        return await handle_clarification(message, chat_id, update_id)
+        return await handle_clarification(message, chat_id, update_id, llm, sheets)
 
     if intent == "plan_request":
         return await handle_plan_request(message, chat_id, update_id)

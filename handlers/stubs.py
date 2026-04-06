@@ -22,14 +22,6 @@ async def handle_chitchat(message: str, chat_id: int, update_id: str) -> BotResp
     )
 
 
-async def handle_clarification(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
-    return BotResponseOutput(
-        message_type="meta_response",
-        summary="I'm not sure what you're referring to. Could you try rephrasing?",
-        trace_id=str(uuid.uuid4()),
-    )
-
-
 async def handle_plan_request(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
     return BotResponseOutput(
         message_type="meta_response",

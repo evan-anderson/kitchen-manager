@@ -108,7 +108,7 @@
 
 1. ✅ *(moved to 2.5a)* Implement query handler: normalize -> targeted Sheets read -> Sonnet responder.
 2. ✅ Implement correction handler: parse correction -> find item in Sheets -> apply fix -> log to corrections_log. — **no env vars needed**
-3. Implement clarification manager: state machine for `pending_clarifications`, expiry cron, `silent_drop` policy. — **no env vars needed**
+3. ✅ Implement clarification manager: state machine for `pending_clarifications`, expiry cron, `silent_drop` policy. — **no env vars needed**
 4. Add admin commands: `/undo`, `/debug last`, `/state`, `/help`. — **no env vars needed**
 5. Expand test fixtures to 20+ messages covering query/correction/clarification paths.
 
