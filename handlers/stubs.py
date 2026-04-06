@@ -41,28 +41,6 @@ async def handle_feedback(message: str, chat_id: int, update_id: str) -> BotResp
     )
 
 
-async def handle_meta(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
-    text = message.strip().lower()
-    if text in ("/help", "help"):
-        return BotResponseOutput(
-            message_type="meta_response",
-            summary=(
-                "Kitchen Manager Bot\n\n"
-                "Tell me about inventory changes:\n"
-                '• "Added 2 lbs ground beef to freezer"\n'
-                '• "Used the last of the milk"\n'
-                '• "Tossed the leftover pasta"\n\n'
-                "More features coming soon: queries, corrections, meal planning."
-            ),
-            trace_id=str(uuid.uuid4()),
-        )
-    return BotResponseOutput(
-        message_type="meta_response",
-        summary="Try /help for usage info.",
-        trace_id=str(uuid.uuid4()),
-    )
-
-
 async def handle_unclear(message: str, chat_id: int, update_id: str) -> BotResponseOutput:
     return BotResponseOutput(
         message_type="meta_response",

@@ -18,10 +18,10 @@ from handlers.clarification import handle_clarification
 from handlers.correction import handle_correction
 from handlers.inventory import handle_inventory_change
 from handlers.query import handle_query
+from handlers.meta import handle_meta
 from handlers.stubs import (
     handle_chitchat,
     handle_feedback,
-    handle_meta,
     handle_plan_request,
     handle_unclear,
 )
