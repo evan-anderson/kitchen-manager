@@ -22,6 +22,7 @@ from models.bot_response import BotResponseOutput
 from models.inventory import InventoryOperation, InventoryParserOutput
 from storage.sheets import SheetsClient
 from storage.sqlite import (
+    create_pending_clarification,
     get_all_receipt_mappings,
     log_trace,
     record_token_spend,
@@ -164,6 +165,25 @@ async def handle_receipt_photo(
         parts.append("Reply with corrections or 'yes' to confirm all.")
 
     summary = "\n".join(parts) if parts else "Receipt processed but no items found."
+
+    # Store pending items as a clarification so the user can confirm
+    if needs_confirm:
+        clarification_id = str(uuid.uuid4())
+        pending_items = [
+            {"raw": op.item_raw, "guess": name, "score": score,
+             "operation": op.model_dump()}
+            for op, name, score in needs_confirm
+        ]
+        context = json.dumps({"pending_items": pending_items})
+        await create_pending_clarification(
+            clarification_id=clarification_id,
+            chat_id=chat_id,
+            user_id=chat_id,
+            original_update_id=update_id,
+            question_text=summary,
+            context_json=context,
+            resolution_policy="receipt_confirm",
+        )
 
     return BotResponseOutput(
         message_type="confirmation" if not needs_confirm else "clarification_question",

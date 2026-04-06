@@ -1,11 +1,13 @@
 """Tests for routers/intent_router.py — mock classify_intent, verify dispatch + cost ceiling."""
 
+import json
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from models.intent import IntentClassifierOutput
 from routers.intent_router import route
+from storage.sqlite import create_pending_clarification
 
 
 @pytest.fixture
@@ -151,3 +153,29 @@ class TestRoute:
         with patch("routers.intent_router.record_token_spend") as mock_spend:
             await route("hi", 123, "upd-11", mock_llm, mock_sheets)
             mock_spend.assert_called_once_with(0, 0, 0.005)
+
+    @pytest.mark.asyncio
+    async def test_pending_clarification_skips_classifier(self, db_path, mock_llm, mock_sheets):
+        """When there's an active clarification, skip intent classification entirely."""
+        await create_pending_clarification(
+            clarification_id="clar-router-1",
+            chat_id=999,
+            user_id=999,
+            original_update_id="upd-0",
+            question_text="Which item?",
+            context_json='{"original_message": "added something"}',
+            db_path=db_path,
+        )
+
+        with patch("routers.intent_router.handle_clarification") as mock_handler:
+            from models.bot_response import BotResponseOutput
+            mock_handler.return_value = BotResponseOutput(
+                message_type="confirmation",
+                summary="Got it",
+                trace_id="test-trace",
+            )
+            result = await route("yes", 999, "upd-1", mock_llm, mock_sheets)
+            mock_handler.assert_called_once()
+
+        # Intent classifier should NOT have been called
+        mock_llm.classify_intent.assert_not_called()

@@ -28,7 +28,7 @@ from handlers.stubs import (
 from llm.client import LLMClient
 from models.bot_response import BotResponseOutput
 from storage.sheets import SheetsClient
-from storage.sqlite import log_trace, record_token_spend
+from storage.sqlite import get_active_clarification, log_trace, record_token_spend
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,13 @@ async def route(
     Returns a BotResponseOutput.
     """
     trace_id = str(uuid.uuid4())
+
+    # 0. Check for pending clarification before classifying intent
+    # Short messages like "yes", "no", corrections are likely replies to a pending question
+    pending = await get_active_clarification(chat_id)
+    if pending:
+        logger.info("Active clarification found for chat %s, routing to clarification handler", chat_id)
+        return await handle_clarification(message, chat_id, update_id, llm, sheets)
 
     # 1. Classify intent (two-pass: Haiku -> Opus fallback)
     classification, cost = await llm.classify_intent(message)

@@ -1,5 +1,6 @@
 """Tests for handlers/clarification.py — clarification resolution pipeline."""
 
+import json
 from unittest.mock import AsyncMock, patch
 
 import pytest
@@ -140,3 +141,125 @@ class TestHandleClarification:
             )
         assert result.message_type == "error"
         assert "try again" in result.summary.lower()
+
+
+class TestReceiptConfirmation:
+    def _pending_items(self):
+        return [
+            {
+                "raw": "KRO BROCCOLI STIR",
+                "guess": "frozen broccoli stir fry",
+                "score": 45.0,
+                "operation": {
+                    "action": "add",
+                    "item_raw": "KRO BROCCOLI STIR",
+                    "item_canonical_guess": "frozen broccoli stir fry",
+                    "location_guess": "freezer",
+                    "quantity_value": 1,
+                    "quantity_unit": "each",
+                },
+            },
+            {
+                "raw": "CABBAGE GREEN",
+                "guess": "green cabbage",
+                "score": 55.0,
+                "operation": {
+                    "action": "add",
+                    "item_raw": "CABBAGE GREEN",
+                    "item_canonical_guess": "green cabbage",
+                    "location_guess": "fridge",
+                    "quantity_value": 1,
+                    "quantity_unit": "each",
+                },
+            },
+        ]
+
+    @pytest.mark.asyncio
+    async def test_yes_confirms_all_items(self, db_path, mock_llm, mock_sheets):
+        """Replying 'yes' to a receipt confirmation adds all pending items."""
+        mock_sheets.get_canonical_items.return_value = []
+        mock_sheets.get_inventory.return_value = []
+
+        context = json.dumps({"pending_items": self._pending_items()})
+        await create_pending_clarification(
+            clarification_id="rcpt-1",
+            chat_id=300,
+            user_id=300,
+            original_update_id="upd-0",
+            question_text="I need help with 2 items",
+            context_json=context,
+            resolution_policy="receipt_confirm",
+            db_path=db_path,
+        )
+
+        result = await handle_clarification(
+            "yes", 300, "upd-1", mock_llm, mock_sheets,
+        )
+
+        assert result.message_type == "confirmation"
+        assert "2 items" in result.summary.lower()
+        assert mock_sheets.update_inventory.call_count >= 2
+
+    @pytest.mark.asyncio
+    async def test_yep_also_confirms(self, db_path, mock_llm, mock_sheets):
+        """Various affirmative replies should also confirm."""
+        mock_sheets.get_canonical_items.return_value = []
+        mock_sheets.get_inventory.return_value = []
+
+        context = json.dumps({"pending_items": self._pending_items()})
+        await create_pending_clarification(
+            clarification_id="rcpt-2",
+            chat_id=301,
+            user_id=301,
+            original_update_id="upd-0",
+            question_text="I need help with 2 items",
+            context_json=context,
+            resolution_policy="receipt_confirm",
+            db_path=db_path,
+        )
+
+        result = await handle_clarification(
+            "Yep", 301, "upd-1", mock_llm, mock_sheets,
+        )
+        assert result.message_type == "confirmation"
+
+    @pytest.mark.asyncio
+    async def test_no_drops_pending_items(self, db_path, mock_llm, mock_sheets):
+        """Non-affirmative replies drop pending items."""
+        context = json.dumps({"pending_items": self._pending_items()})
+        await create_pending_clarification(
+            clarification_id="rcpt-3",
+            chat_id=302,
+            user_id=302,
+            original_update_id="upd-0",
+            question_text="I need help with 2 items",
+            context_json=context,
+            resolution_policy="receipt_confirm",
+            db_path=db_path,
+        )
+
+        result = await handle_clarification(
+            "no those are wrong", 302, "upd-1", mock_llm, mock_sheets,
+        )
+        assert result.message_type == "meta_response"
+        assert "dropped" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_no_sheets_returns_error(self, db_path, mock_llm):
+        """Receipt confirmation without Sheets returns error."""
+        context = json.dumps({"pending_items": self._pending_items()})
+        await create_pending_clarification(
+            clarification_id="rcpt-4",
+            chat_id=303,
+            user_id=303,
+            original_update_id="upd-0",
+            question_text="I need help with 2 items",
+            context_json=context,
+            resolution_policy="receipt_confirm",
+            db_path=db_path,
+        )
+
+        result = await handle_clarification(
+            "yes", 303, "upd-1", mock_llm, sheets=None,
+        )
+        assert result.message_type == "error"

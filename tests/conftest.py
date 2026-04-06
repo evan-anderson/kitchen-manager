@@ -33,13 +33,16 @@ async def mock_bot():
 
 
 @pytest_asyncio.fixture
-async def client(db_path, mock_bot):
+async def client(db_path, mock_bot, monkeypatch):
     """
     AsyncClient wired to the FastAPI app.
     - Database pointed at a temp file.
     - Telegram bot replaced with an AsyncMock.
+    - Allowlist cleared so test chat IDs aren't blocked.
     """
     from main import app, get_bot, get_db_path
+
+    monkeypatch.setattr(settings, "allowed_chat_ids", [])
 
     app.dependency_overrides[get_db_path] = lambda: db_path
     app.dependency_overrides[get_bot] = lambda: mock_bot
