@@ -43,6 +43,44 @@
 
 **Checkpoint**: Use it daily for a week before adding the family. Log everything.
 
+## Phase 2.5 — Inventory Query + Receipt-Based Add (~6 hrs)
+
+**Goal**: Users can ask what's in stock and bulk-add items by sending receipt photos.
+
+### 2.5a — Inventory Query Handler
+
+1. Implement `handle_query`: deterministic keyword match for tab selection (fridge/freezer/pantry), fall back to all tabs.
+2. Read matching inventory tabs from Sheets.
+3. Pass inventory snapshot + user question to LLM `respond()` with a query-specific system prompt.
+4. Return Telegram-friendly answer via `BotResponseOutput`.
+
+### 2.5b — Receipt Image Ingestion
+
+1. Accept `message.photo` in the Telegram webhook (currently rejected with early return).
+2. Download largest photo size, base64-encode it.
+3. Send to Claude vision API with a receipt-specific parser prompt.
+4. Output: list of `InventoryOperation` items (reuse existing model).
+
+### 2.5c — Receipt Abbreviation Resolution
+
+1. Add `receipt_mappings` SQLite table: `(abbreviation TEXT, canonical_name TEXT, store TEXT, created_at TEXT)`.
+2. Before reconciliation, check receipt_mappings for known abbreviation→canonical mappings.
+3. Confidence-tiered resolution:
+   - **High (fuzzy >= 85)**: auto-add, no friction.
+   - **Medium (60-84)**: batch into a single confirmation message ("I think these are X, Y, Z. Sound right?").
+   - **Low (< 60)**: ask user what the item is, then store the mapping for next time.
+
+### 2.5d — Batch Confirmation UX
+
+1. For medium/low confidence receipt items, send a single grouped confirmation message.
+2. Store pending receipt operations in `pending_clarifications` with `resolution_policy = 'receipt_confirm'`.
+3. On user confirmation, apply all operations to Sheets via the existing inventory handler.
+4. On timeout (15min), silently drop unconfirmed items.
+
+**Checkpoint**: Test with 3+ real Costco receipts. Verify abbreviation memory accumulates correctly.
+
+---
+
 ## Phase 3 — Query + Correction + Clarification (~5 hrs)
 
 **Goal**: Multi-turn flows work cleanly.
