@@ -120,10 +120,19 @@ async def _apply_operation(
 
     if op.action in ("use", "toss"):
         rows, removed = _remove_or_reduce(rows, canonical_name, op)
-        await sheets.update_inventory(tab, rows)
         if removed:
+            await sheets.update_inventory(tab, rows)
             return f"{verb} {qty_str}{canonical_name} from {tab}"
-        return f"{verb} {canonical_name} (not found in {tab}, noted)"
+        # Search other tabs if not found in guessed location
+        for other_tab in ("fridge", "freezer", "pantry"):
+            if other_tab == tab:
+                continue
+            other_rows = await sheets.get_inventory(other_tab)
+            other_rows, removed = _remove_or_reduce(other_rows, canonical_name, op)
+            if removed:
+                await sheets.update_inventory(other_tab, other_rows)
+                return f"{verb} {qty_str}{canonical_name} from {other_tab}"
+        return f"{verb} {canonical_name} (not found in any tab, noted)"
 
     if op.action == "freeze":
         # Move from fridge/pantry to freezer

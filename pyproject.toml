@@ -28,6 +28,9 @@ dev = [
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "integration: hits real Claude API and Google Sheets (deselect with -m 'not integration')",
+]
 
 [tool.ruff]
 line-length = 100
