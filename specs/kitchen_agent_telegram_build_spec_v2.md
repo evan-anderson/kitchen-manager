@@ -296,7 +296,7 @@ All user-facing replies are formatted through the bot response schema before bei
 
 ## 7a. Admin Commands
 
-Small surface, big value. Restricted to `admin_users` config list (Evan's `chat_id`) except where noted.
+Small surface, big value. Restricted to `admin_users` config list (admin `chat_id`) except where noted.
 
 | Command | Access | Description |
 |---|---|---|

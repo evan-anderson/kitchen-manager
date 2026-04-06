@@ -21,7 +21,7 @@ def _make_update(
         "update_id": update_id,
         "message": {
             "message_id": update_id,
-            "from": {"id": user_id, "first_name": "Evan", "is_bot": False},
+            "from": {"id": user_id, "first_name": "TestUser", "is_bot": False},
             "chat": {"id": chat_id, "type": "private"},
             "text": text,
             "date": 1700000000,
@@ -170,7 +170,7 @@ async def test_webhook_empty_text(client):
         "update_id": 4444,
         "message": {
             "message_id": 1,
-            "from": {"id": 1, "first_name": "Evan", "is_bot": False},
+            "from": {"id": 1, "first_name": "TestUser", "is_bot": False},
             "chat": {"id": 1, "type": "private"},
             "sticker": {"file_id": "sticker_123"},
             "date": 1700000000,

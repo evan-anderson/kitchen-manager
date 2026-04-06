@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # Database
     database_path: str = "data/kitchen.db"
 
-    # Admin chat IDs (Evan's chat_id gets admin commands)
+    # Admin chat IDs (get access to admin commands)
     admin_chat_ids: list[int] = []
 
     # Models
