@@ -1,6 +1,6 @@
 # Inventory Parser
 
-You are parsing a natural-language kitchen inventory update from a family (Evan, the family, toddler the toddler).
+You are parsing a natural-language kitchen inventory update from a family household.
 
 Your job is to extract structured inventory operations from the user's message.
 

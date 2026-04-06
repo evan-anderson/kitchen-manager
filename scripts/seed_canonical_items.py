@@ -93,7 +93,7 @@ CANONICAL_ITEMS = [
     ("oatmeal", "pantry", "pantry", "containers"),
     ("coffee", "pantry", "pantry", "bags"),
     ("tea", "pantry", "pantry", "boxes"),
-    # Toddler staples (the toddler)
+    # Toddler staples
     ("pouches", "toddler", "pantry", "each"),
     ("goldfish crackers", "toddler", "pantry", "boxes"),
     ("string cheese", "toddler", "fridge", "packs"),

@@ -174,17 +174,17 @@ class TestFeedbackParserOutput:
             feedback_type="meal_reaction",
             subject="ground beef skillet",
             sentiment="positive",
-            who="the toddler",
+            who="toddler",
             detail="ate every bite",
         )
-        assert obj.who == "the toddler"
+        assert obj.who == "toddler"
 
     def test_restriction(self):
         obj = FeedbackParserOutput(
             feedback_type="restriction",
             subject="honey",
             sentiment="neutral",
-            who="the toddler",
+            who="toddler",
             detail="too young for honey",
         )
         assert obj.feedback_type == "restriction"

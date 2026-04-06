@@ -19,7 +19,7 @@
     },
     "who": {
       "type": ["string", "null"],
-      "description": "Family member the feedback applies to (e.g., the toddler, the family, everyone)"
+      "description": "Family member the feedback applies to (e.g., toddler, everyone)"
     },
     "detail": {
       "type": ["string", "null"],

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Telegram bot acting as a family kitchen assistant (Evan, the family, the toddler). Tracks pantry/fridge/freezer inventory via natural-language messages, answers inventory questions, and generates a weekly meal plan + grocery list every Saturday morning for Costco shopping.
+Telegram bot acting as a family kitchen assistant. Tracks pantry/fridge/freezer inventory via natural-language messages, answers inventory questions, and generates a weekly meal plan + grocery list every Saturday morning for Costco shopping.
 
 This is v0 — a 3-4 week prototype. Architecture is deterministic routing with Claude for parsing/generation, not a full agent. Will later port to OpenClaw skills on a Mac mini.
 
@@ -25,7 +25,7 @@ All specs and JSON schemas live in `specs/`. The essential docs:
 ## Design Constraints
 
 - Cost ceiling: ~$25/mo all-in (Railway + Claude API). Track token spend in SQLite per UTC day.
-- the family (non-technical user) must actually use it — low friction over technical elegance.
+- Non-technical family members must actually use it — low friction over technical elegance.
 - Google Sheets is the user-visible source of truth; SQLite is internal operational state.
 - All corrections are append-only events, never silent history rewrites.
 - All user-facing replies go through the bot response schema (`specs/telegram_bot_response_schema_v1.json`).

@@ -11,7 +11,7 @@ class FeedbackParserOutput(BaseModel):
     # What the feedback is about (meal name, ingredient, cuisine, etc.)
     subject: str
     sentiment: Sentiment
-    # Family member the feedback applies to (the toddler, the family, everyone, etc.)
+    # Family member the feedback applies to (e.g., "toddler", "everyone", etc.)
     who: Optional[str] = None
     # Additional context ("too spicy", "wants more of this")
     detail: Optional[str] = None

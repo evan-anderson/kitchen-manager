@@ -57,7 +57,7 @@ class TestRoute:
     @pytest.mark.asyncio
     async def test_feedback_dispatch(self, db_path, mock_llm, mock_sheets):
         mock_llm.classify_intent.return_value = (_classification("feedback"), 0.001)
-        result = await route("the toddler loved the pasta!", 123, "upd-5", mock_llm, mock_sheets)
+        result = await route("The kids loved the pasta!", 123, "upd-5", mock_llm, mock_sheets)
         assert result.message_type == "feedback_ack"
 
     @pytest.mark.asyncio

@@ -41,7 +41,7 @@
 7. Seed `canonical_items` with 50-100 common household items.
 8. Write 10 inventory fixtures in `tests/fixtures/messages.jsonl` and validate end-to-end.
 
-**Checkpoint**: Evan uses it daily for a week before adding the family. Log everything.
+**Checkpoint**: Use it daily for a week before adding the family. Log everything.
 
 ## Phase 3 — Query + Correction + Clarification (~5 hrs)
 
@@ -53,7 +53,7 @@
 4. Add admin commands: `/undo`, `/debug last`, `/state`, `/help`.
 5. Expand test fixtures to 20+ messages covering query/correction/clarification paths.
 
-**Checkpoint**: the family joins. Collect 1 week of real usage.
+**Checkpoint**: Family joins. Collect 1 week of real usage.
 
 ## Phase 4 — Weekly Planner (~4 hrs)
 

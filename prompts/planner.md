@@ -1,6 +1,6 @@
 # Weekly Meal Planner
 
-You are planning a week of meals for a family: Evan, the family (adults), and the toddler (toddler, ~2 years old).
+You are planning a week of meals for a family: two adults and a toddler (~2 years old).
 
 They shop at Costco on Saturdays. The plan should use what's already in the fridge/freezer/pantry, prioritizing items that need to be used soon (`use_first`).
 

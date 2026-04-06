@@ -169,7 +169,7 @@ Build a planning context bundle from Sheets + memory, then ask Sonnet for a stru
 
 ### `feedback`
 
-Route meal preferences and reactions ("the toddler loved that", "too much garlic") to memory/preferences storage, not the inventory parser.
+Route meal preferences and reactions ("the kids loved that", "too much garlic") to memory/preferences storage, not the inventory parser.
 
 ### `meta`
 
