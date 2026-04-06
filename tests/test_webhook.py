@@ -191,6 +191,51 @@ async def test_webhook_malformed_json(client):
     assert resp.status_code == 200
 
 
+async def test_allowlist_blocks_unauthorized_chat(client):
+    """When allowed_chat_ids is non-empty, unlisted chats are silently ignored."""
+    c, mock_bot = client
+    from config import settings
+    original = settings.allowed_chat_ids
+    try:
+        settings.allowed_chat_ids = [999]  # only chat 999 is allowed
+        with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response()):
+            resp = await c.post("/telegram-webhook", json=_make_update(chat_id=123456))
+        assert resp.status_code == 200
+        mock_bot.send_message.assert_not_awaited()  # no reply sent
+    finally:
+        settings.allowed_chat_ids = original
+
+
+async def test_allowlist_allows_listed_chat(client):
+    """Listed chat IDs pass the allowlist check normally."""
+    c, mock_bot = client
+    from config import settings
+    original = settings.allowed_chat_ids
+    try:
+        settings.allowed_chat_ids = [123456]
+        with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response("ok")):
+            resp = await c.post("/telegram-webhook", json=_make_update(chat_id=123456))
+        assert resp.status_code == 200
+        mock_bot.send_message.assert_awaited_once()
+    finally:
+        settings.allowed_chat_ids = original
+
+
+async def test_allowlist_empty_allows_all(client):
+    """Empty allowed_chat_ids means open access (default)."""
+    c, mock_bot = client
+    from config import settings
+    original = settings.allowed_chat_ids
+    try:
+        settings.allowed_chat_ids = []
+        with patch("main.route", new_callable=AsyncMock, return_value=_mock_route_response("ok")):
+            resp = await c.post("/telegram-webhook", json=_make_update(chat_id=99999))
+        assert resp.status_code == 200
+        mock_bot.send_message.assert_awaited_once()
+    finally:
+        settings.allowed_chat_ids = original
+
+
 async def test_webhook_photo_routes_to_receipt_handler(client):
     """Photo messages should be routed to the receipt handler, not the text router."""
     c, mock_bot = client

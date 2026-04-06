@@ -112,6 +112,11 @@ async def telegram_webhook(
     if not chat_id:
         return {"ok": True}
 
+    # --- Allowlist check ---
+    if settings.allowed_chat_ids and chat_id not in settings.allowed_chat_ids:
+        logger.warning("Chat %s not in allowed_chat_ids — ignoring update %s", chat_id, update_id)
+        return {"ok": True}
+
     # --- Idempotency ---
     payload_hash = hashlib.sha256(
         json.dumps(data, sort_keys=True).encode()

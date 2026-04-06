@@ -81,12 +81,12 @@
 
 **Checkpoint**: Test with 3+ real Costco receipts. Verify abbreviation memory accumulates correctly.
 
-### 2.5e — Chat Allowlist — no env vars needed
+### 2.5e — Chat Allowlist ✅ — no env vars needed
 
-1. Add `allowed_chat_ids: list[int] = []` to `config.py` (env var `ALLOWED_CHAT_IDS`).
-2. Check early in the webhook — if the list is non-empty and `chat_id` is not in it, silently return 200 with no processing.
-3. Empty list = open access (preserves dev/testing workflow).
-4. Log rejected chat IDs at WARNING level so new family members can be onboarded from logs.
+1. ✅ Add `allowed_chat_ids: list[int] = []` to `config.py` (env var `ALLOWED_CHAT_IDS`).
+2. ✅ Check early in the webhook — if the list is non-empty and `chat_id` is not in it, silently return 200 with no processing.
+3. ✅ Empty list = open access (preserves dev/testing workflow).
+4. ✅ Log rejected chat IDs at WARNING level so new family members can be onboarded from logs.
 
 ### 2.5f — Duplicate Addition Detection — no env vars needed
 

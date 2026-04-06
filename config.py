@@ -27,6 +27,10 @@ class Settings(BaseSettings):
     # Admin chat IDs (get access to admin commands)
     admin_chat_ids: list[int] = []
 
+    # Allowed chat IDs — if non-empty, only these chats can use the bot.
+    # Empty list = open access (for development/testing).
+    allowed_chat_ids: list[int] = []
+
     # Models
     intent_classifier_model: str = "claude-haiku-4-5"
     main_model: str = "claude-opus-4-6"
