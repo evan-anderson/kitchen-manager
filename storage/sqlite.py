@@ -59,6 +59,14 @@ CREATE TABLE IF NOT EXISTS daily_token_spend (
     output_tokens       INTEGER NOT NULL DEFAULT 0,
     estimated_cost_usd  REAL NOT NULL DEFAULT 0.0
 );
+
+CREATE TABLE IF NOT EXISTS receipt_mappings (
+    abbreviation  TEXT NOT NULL,
+    canonical_name TEXT NOT NULL,
+    store         TEXT NOT NULL DEFAULT '',
+    created_at    TEXT NOT NULL,
+    PRIMARY KEY (abbreviation, store)
+);
 """
 
 
@@ -157,6 +165,60 @@ async def record_token_spend(
             (date, input_tokens, output_tokens, estimated_cost_usd),
         )
         await db.commit()
+
+
+async def get_receipt_mapping(
+    abbreviation: str, store: str = "", db_path: str | None = None
+) -> str | None:
+    """Look up a known receipt abbreviation. Returns canonical name or None."""
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        # Try store-specific first, then generic
+        async with db.execute(
+            "SELECT canonical_name FROM receipt_mappings WHERE abbreviation = ? AND store = ?",
+            (abbreviation.upper().strip(), store),
+        ) as cursor:
+            row = await cursor.fetchone()
+            if row:
+                return row[0]
+        if store:
+            async with db.execute(
+                "SELECT canonical_name FROM receipt_mappings WHERE abbreviation = ? AND store = ''",
+                (abbreviation.upper().strip(),),
+            ) as cursor:
+                row = await cursor.fetchone()
+                return row[0] if row else None
+        return None
+
+
+async def save_receipt_mapping(
+    abbreviation: str, canonical_name: str, store: str = "", db_path: str | None = None
+) -> None:
+    """Store a receipt abbreviation → canonical name mapping."""
+    created_at = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        await db.execute(
+            """INSERT OR REPLACE INTO receipt_mappings
+               (abbreviation, canonical_name, store, created_at)
+               VALUES (?, ?, ?, ?)""",
+            (abbreviation.upper().strip(), canonical_name, store, created_at),
+        )
+        await db.commit()
+
+
+async def get_all_receipt_mappings(
+    store: str = "", db_path: str | None = None
+) -> dict[str, str]:
+    """Return all receipt mappings as {abbreviation: canonical_name}."""
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        if store:
+            query = "SELECT abbreviation, canonical_name FROM receipt_mappings WHERE store = ? OR store = ''"
+            params = (store,)
+        else:
+            query = "SELECT abbreviation, canonical_name FROM receipt_mappings"
+            params = ()
+        async with db.execute(query, params) as cursor:
+            rows = await cursor.fetchall()
+            return {row[0]: row[1] for row in rows}
 
 
 async def get_today_spend(db_path: str | None = None) -> float:

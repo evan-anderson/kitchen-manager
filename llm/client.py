@@ -154,6 +154,54 @@ class LLMClient:
         return result.parsed_output, cost
 
     # ------------------------------------------------------------------
+    # Receipt parser (vision)
+    # ------------------------------------------------------------------
+
+    async def parse_receipt(
+        self,
+        image_base64: str,
+        media_type: str,
+        canonical_items: list[str],
+        known_mappings: dict[str, str] | None = None,
+    ) -> tuple[InventoryParserOutput, float]:
+        """Parse a receipt image into structured inventory operations."""
+        system = _load_prompt("receipt_parser")
+        canonical_str = ", ".join(canonical_items[:200])
+
+        text_parts = [f"Canonical items: {canonical_str}"]
+        if known_mappings:
+            mappings_str = ", ".join(f"{k} = {v}" for k, v in known_mappings.items())
+            text_parts.append(f"Known receipt abbreviation mappings: {mappings_str}")
+        text_parts.append("Extract all grocery items from this receipt image.")
+
+        user_content: list[dict] = [
+            {
+                "type": "image",
+                "source": {
+                    "type": "base64",
+                    "media_type": media_type,
+                    "data": image_base64,
+                },
+            },
+            {"type": "text", "text": "\n\n".join(text_parts)},
+        ]
+
+        result = await self._client.messages.parse(
+            model=settings.main_model,
+            max_tokens=2048,
+            thinking={"type": "adaptive"},
+            system=system,
+            messages=[{"role": "user", "content": user_content}],
+            output_format=InventoryParserOutput,
+        )
+        cost = _estimate_cost(
+            settings.main_model,
+            result.usage.input_tokens,
+            result.usage.output_tokens,
+        )
+        return result.parsed_output, cost
+
+    # ------------------------------------------------------------------
     # Lightweight chitchat / query response
     # ------------------------------------------------------------------
 

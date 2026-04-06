@@ -7,12 +7,15 @@ import aiosqlite
 import pytest
 
 from storage.sqlite import (
+    get_all_receipt_mappings,
+    get_receipt_mapping,
     get_today_spend,
     init_db,
     is_duplicate,
     log_trace,
     record_token_spend,
     record_update,
+    save_receipt_mapping,
     upsert_chat_state,
 )
 
@@ -24,6 +27,7 @@ EXPECTED_TABLES = {
     "corrections_log",
     "trace_events",
     "daily_token_spend",
+    "receipt_mappings",
 }
 
 
@@ -200,3 +204,55 @@ async def test_record_token_spend_creates_row_for_today(db_path):
     await record_token_spend(100, 50, 0.001, db_path=db_path)
     spend = await get_today_spend(db_path=db_path)
     assert spend > 0
+
+
+# ------------------------------------------------------------------
+# receipt_mappings
+# ------------------------------------------------------------------
+
+
+async def test_get_receipt_mapping_returns_none_when_empty(db_path):
+    result = await get_receipt_mapping("UNKNOWN ABBREV", db_path=db_path)
+    assert result is None
+
+
+async def test_save_and_get_receipt_mapping(db_path):
+    await save_receipt_mapping("KS ORG HLF&HLF", "half and half", db_path=db_path)
+    result = await get_receipt_mapping("KS ORG HLF&HLF", db_path=db_path)
+    assert result == "half and half"
+
+
+async def test_receipt_mapping_case_insensitive_lookup(db_path):
+    await save_receipt_mapping("GV 2% RD GL", "2% milk", db_path=db_path)
+    result = await get_receipt_mapping("gv 2% rd gl", db_path=db_path)
+    assert result == "2% milk"
+
+
+async def test_receipt_mapping_with_store(db_path):
+    await save_receipt_mapping("ORG BNNS", "organic bananas", store="costco", db_path=db_path)
+    result = await get_receipt_mapping("ORG BNNS", store="costco", db_path=db_path)
+    assert result == "organic bananas"
+    # Generic lookup should not find store-specific mapping
+    result2 = await get_receipt_mapping("ORG BNNS", store="", db_path=db_path)
+    assert result2 is None
+
+
+async def test_receipt_mapping_store_fallback_to_generic(db_path):
+    """Store-specific lookup falls back to generic mapping."""
+    await save_receipt_mapping("EGGS LG", "eggs", store="", db_path=db_path)
+    result = await get_receipt_mapping("EGGS LG", store="walmart", db_path=db_path)
+    assert result == "eggs"
+
+
+async def test_get_all_receipt_mappings(db_path):
+    await save_receipt_mapping("A", "apple", db_path=db_path)
+    await save_receipt_mapping("B", "banana", db_path=db_path)
+    mappings = await get_all_receipt_mappings(db_path=db_path)
+    assert mappings == {"A": "apple", "B": "banana"}
+
+
+async def test_save_receipt_mapping_upserts(db_path):
+    await save_receipt_mapping("X", "old name", db_path=db_path)
+    await save_receipt_mapping("X", "new name", db_path=db_path)
+    result = await get_receipt_mapping("X", db_path=db_path)
+    assert result == "new name"

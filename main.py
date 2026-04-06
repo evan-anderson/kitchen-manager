@@ -15,6 +15,7 @@ import telegram
 from fastapi import Depends, FastAPI, Request
 
 from config import settings
+from handlers.receipt import handle_receipt_photo
 from routers.intent_router import route
 from services import get_llm_client, get_sheets_client
 from storage.sqlite import get_today_spend, init_db, is_duplicate, record_update
@@ -105,9 +106,10 @@ async def telegram_webhook(
     message = data.get("message") or {}
     chat_id = message.get("chat", {}).get("id")
     text = message.get("text") or ""
+    photo_list = message.get("photo") or []
+    caption = message.get("caption") or ""
 
     if not chat_id:
-        # Not a text message we handle yet (sticker, photo, etc.)
         return {"ok": True}
 
     # --- Idempotency ---
@@ -136,7 +138,23 @@ async def telegram_webhook(
         return {"ok": True}
 
     # --- Route to handler ---
-    if not text:
+    if photo_list:
+        # Receipt photo — use the largest available size
+        try:
+            llm = get_llm_client()
+            sheets = get_sheets_client()
+            if sheets is None:
+                reply = "Google Sheets is not configured. I can't track inventory right now."
+            else:
+                photo_file_id = photo_list[-1]["file_id"]  # largest size is last
+                response = await handle_receipt_photo(
+                    photo_file_id, chat_id, update_id, llm, sheets, bot, caption,
+                )
+                reply = response.summary
+        except Exception as exc:
+            logger.exception("Error processing receipt photo for update %s: %s", update_id, exc)
+            reply = "Something went wrong processing that photo. Please try again."
+    elif not text:
         reply = "(no text)"
     else:
         try:
