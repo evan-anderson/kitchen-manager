@@ -16,7 +16,7 @@ from llm.client import LLMClient
 from models.bot_response import BotResponseOutput
 from models.inventory import InventoryOperation, InventoryParserOutput
 from storage.sheets import SheetsClient
-from storage.sqlite import log_trace, record_token_spend
+from storage.sqlite import find_recent_add, log_trace, record_recent_add, record_token_spend
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +40,7 @@ async def handle_inventory_change(
     update_id: str,
     llm: LLMClient,
     sheets: SheetsClient,
+    skip_duplicate_check: bool = False,
 ) -> BotResponseOutput:
     """
     Parse an inventory message, reconcile items, apply to Sheets, return confirmation.
@@ -83,9 +84,29 @@ async def handle_inventory_change(
             await sheets.add_canonical_item(result.canonical_name, "", location, unit)
             canonical_items.append(result.canonical_name)
 
+        # Duplicate detection for "add" operations
+        if op.action == "add" and not skip_duplicate_check:
+            tab = _resolve_location(op)
+            recent = await find_recent_add(result.canonical_name, tab)
+            if recent:
+                added_at_iso, added_by = recent
+                try:
+                    added_dt = datetime.fromisoformat(added_at_iso)
+                    mins_ago = int((datetime.now(timezone.utc) - added_dt).total_seconds() / 60)
+                    time_str = f"{mins_ago} minutes ago" if mins_ago > 0 else "just now"
+                except (ValueError, TypeError):
+                    time_str = "recently"
+                dup_note = f"⚠ {result.canonical_name} was added to {tab} {time_str}. Added again."
+                confirmations.append(dup_note)
+
         # Apply operation to the appropriate inventory tab
         confirmation = await _apply_operation(op, result.canonical_name, sheets)
         confirmations.append(confirmation)
+
+        # Record add for future duplicate detection
+        if op.action == "add":
+            tab = _resolve_location(op)
+            await record_recent_add(chat_id, result.canonical_name, tab)
 
     summary = "\n".join(confirmations) if confirmations else "No changes applied."
 

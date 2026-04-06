@@ -88,13 +88,13 @@
 3. ✅ Empty list = open access (preserves dev/testing workflow).
 4. ✅ Log rejected chat IDs at WARNING level so new family members can be onboarded from logs.
 
-### 2.5f — Duplicate Addition Detection — no env vars needed
+### 2.5f — Duplicate Addition Detection ✅ — no env vars needed
 
-1. Before applying an "add" operation, check if the same item was already added to the same tab within a configurable time window (default: 30 minutes).
-2. If a recent duplicate is found, ask for confirmation: "Chicken breast was added to the freezer 10 minutes ago. Add again?"
-3. Use `trace_events` or a lightweight lookup against Sheets `added_date` + item name to detect duplicates.
-4. Bypass duplicate check when the add came from a receipt (bulk adds are intentional).
-5. This guards against two household members reporting the same grocery trip independently.
+1. ✅ Before applying an "add" operation, check if the same item was already added to the same tab within a configurable time window (default: 30 minutes).
+2. ✅ If a recent duplicate is found, warn in the response: "item was added to tab X minutes ago. Added again."
+3. ✅ Uses `recent_adds` SQLite table with timestamp for fast lookup (Sheets `added_date` is date-only).
+4. ✅ Bypass duplicate check when `skip_duplicate_check=True` (used for receipt bulk adds).
+5. ✅ Cross-chat detection — catches two household members adding the same thing.
 
 **Checkpoint**: Verify duplicate detection with realistic scenarios (same item from two phones, receipt + manual, intentional double-buy).
 

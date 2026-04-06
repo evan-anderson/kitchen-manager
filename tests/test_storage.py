@@ -7,12 +7,15 @@ import aiosqlite
 import pytest
 
 from storage.sqlite import (
+    cleanup_old_adds,
+    find_recent_add,
     get_all_receipt_mappings,
     get_receipt_mapping,
     get_today_spend,
     init_db,
     is_duplicate,
     log_trace,
+    record_recent_add,
     record_token_spend,
     record_update,
     save_receipt_mapping,
@@ -28,6 +31,7 @@ EXPECTED_TABLES = {
     "trace_events",
     "daily_token_spend",
     "receipt_mappings",
+    "recent_adds",
 }
 
 
@@ -256,3 +260,58 @@ async def test_save_receipt_mapping_upserts(db_path):
     await save_receipt_mapping("X", "new name", db_path=db_path)
     result = await get_receipt_mapping("X", db_path=db_path)
     assert result == "new name"
+
+
+# ------------------------------------------------------------------
+# recent_adds — duplicate detection
+# ------------------------------------------------------------------
+
+
+async def test_find_recent_add_returns_none_when_empty(db_path):
+    result = await find_recent_add("milk", "fridge", db_path=db_path)
+    assert result is None
+
+
+async def test_record_and_find_recent_add(db_path):
+    await record_recent_add(123, "milk", "fridge", db_path=db_path)
+    result = await find_recent_add("milk", "fridge", db_path=db_path)
+    assert result is not None
+    added_at, chat_id = result
+    assert chat_id == 123
+
+
+async def test_find_recent_add_case_insensitive(db_path):
+    await record_recent_add(123, "Chicken Breast", "freezer", db_path=db_path)
+    result = await find_recent_add("chicken breast", "freezer", db_path=db_path)
+    assert result is not None
+
+
+async def test_find_recent_add_different_tab_not_found(db_path):
+    await record_recent_add(123, "milk", "fridge", db_path=db_path)
+    result = await find_recent_add("milk", "freezer", db_path=db_path)
+    assert result is None
+
+
+async def test_find_recent_add_respects_window(db_path):
+    """Items added outside the window should not be found."""
+    # Record with a zero-minute window — even a just-added item won't match
+    await record_recent_add(123, "eggs", "fridge", db_path=db_path)
+    result = await find_recent_add("eggs", "fridge", window_minutes=0, db_path=db_path)
+    assert result is None
+
+
+async def test_find_recent_add_crosses_chat_ids(db_path):
+    """Duplicate detection works across different chat IDs (different household members)."""
+    await record_recent_add(100, "milk", "fridge", db_path=db_path)
+    result = await find_recent_add("milk", "fridge", db_path=db_path)
+    assert result is not None
+    _, chat_id = result
+    assert chat_id == 100  # Shows it was added by chat 100
+
+
+async def test_cleanup_old_adds(db_path):
+    await record_recent_add(123, "old item", "fridge", db_path=db_path)
+    # Cleanup with 0 hours = remove everything
+    await cleanup_old_adds(max_age_hours=0, db_path=db_path)
+    result = await find_recent_add("old item", "fridge", db_path=db_path)
+    assert result is None

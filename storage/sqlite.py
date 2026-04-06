@@ -4,7 +4,7 @@ Google Sheets is the user-visible source of truth.
 """
 
 import aiosqlite
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from config import settings
 
@@ -66,6 +66,14 @@ CREATE TABLE IF NOT EXISTS receipt_mappings (
     store         TEXT NOT NULL DEFAULT '',
     created_at    TEXT NOT NULL,
     PRIMARY KEY (abbreviation, store)
+);
+
+CREATE TABLE IF NOT EXISTS recent_adds (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    chat_id     INTEGER NOT NULL,
+    item        TEXT NOT NULL,
+    tab         TEXT NOT NULL,
+    added_at    TEXT NOT NULL
 );
 """
 
@@ -219,6 +227,45 @@ async def get_all_receipt_mappings(
         async with db.execute(query, params) as cursor:
             rows = await cursor.fetchall()
             return {row[0]: row[1] for row in rows}
+
+
+async def record_recent_add(
+    chat_id: int, item: str, tab: str, db_path: str | None = None
+) -> None:
+    """Record that an item was just added to a tab."""
+    added_at = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        await db.execute(
+            "INSERT INTO recent_adds (chat_id, item, tab, added_at) VALUES (?, ?, ?, ?)",
+            (chat_id, item.lower().strip(), tab, added_at),
+        )
+        await db.commit()
+
+
+async def find_recent_add(
+    item: str, tab: str, window_minutes: int = 30, db_path: str | None = None
+) -> tuple[str, int] | None:
+    """
+    Check if this item was added to this tab within the time window.
+    Returns (added_at_iso, chat_id) if found, None otherwise.
+    Matches any chat_id — the point is to catch two household members adding the same thing.
+    """
+    cutoff = (datetime.now(timezone.utc) - timedelta(minutes=window_minutes)).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        async with db.execute(
+            "SELECT added_at, chat_id FROM recent_adds WHERE item = ? AND tab = ? AND added_at > ? ORDER BY added_at DESC LIMIT 1",
+            (item.lower().strip(), tab, cutoff),
+        ) as cursor:
+            row = await cursor.fetchone()
+            return (row[0], row[1]) if row else None
+
+
+async def cleanup_old_adds(max_age_hours: int = 24, db_path: str | None = None) -> None:
+    """Remove recent_adds older than max_age_hours."""
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=max_age_hours)).isoformat()
+    async with aiosqlite.connect(_db_path(db_path)) as db:
+        await db.execute("DELETE FROM recent_adds WHERE added_at < ?", (cutoff,))
+        await db.commit()
 
 
 async def get_today_spend(db_path: str | None = None) -> float:
