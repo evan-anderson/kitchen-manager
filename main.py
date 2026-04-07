@@ -12,9 +12,11 @@ import os
 from contextlib import asynccontextmanager
 
 import telegram
+from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from fastapi import Depends, FastAPI, Request
 
 from config import settings
+from handlers.planner import run_scheduled_plan
 from handlers.rate_limiter import get_rate_limiter
 from handlers.receipt import handle_receipt_photo
 from routers.intent_router import route
@@ -53,8 +55,37 @@ async def lifespan(app: FastAPI):
     else:
         logger.warning("TELEGRAM_BOT_TOKEN not set — bot will not send messages")
 
+    # APScheduler — weekly meal plan every Saturday at 7:00am ET
+    scheduler = AsyncIOScheduler(timezone="America/New_York")
+
+    async def _scheduled_plan_job():
+        bot = _bot
+        llm = get_llm_client()
+        sheets = get_sheets_client()
+        chat_ids = settings.admin_chat_ids or settings.allowed_chat_ids
+        if bot and sheets and chat_ids:
+            await run_scheduled_plan(bot, llm, sheets, chat_ids)
+        else:
+            logger.warning(
+                "Scheduled plan skipped: bot=%s sheets=%s chat_ids=%s",
+                bool(bot), bool(sheets), chat_ids,
+            )
+
+    scheduler.add_job(
+        _scheduled_plan_job,
+        trigger="cron",
+        day_of_week="sat",
+        hour=7,
+        minute=0,
+        id="weekly_meal_plan",
+        replace_existing=True,
+    )
+    scheduler.start()
+    logger.info("APScheduler started — weekly plan scheduled for Saturday 7:00am ET")
+
     yield
 
+    scheduler.shutdown(wait=False)
     _bot = None
 
 

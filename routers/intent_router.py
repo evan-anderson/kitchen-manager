@@ -17,12 +17,12 @@ import uuid
 from handlers.clarification import handle_clarification
 from handlers.correction import handle_correction
 from handlers.inventory import handle_inventory_change
+from handlers.planner import handle_plan_request
 from handlers.query import handle_query
 from handlers.meta import handle_meta
 from handlers.stubs import (
     handle_chitchat,
     handle_feedback,
-    handle_plan_request,
     handle_unclear,
 )
 from llm.client import LLMClient
@@ -104,7 +104,13 @@ async def route(
         return await handle_clarification(message, chat_id, update_id, llm, sheets)
 
     if intent == "plan_request":
-        return await handle_plan_request(message, chat_id, update_id)
+        if sheets is None:
+            return BotResponseOutput(
+                message_type="error",
+                summary="Google Sheets is not configured. I can't generate a meal plan right now.",
+                trace_id=trace_id,
+            )
+        return await handle_plan_request(message, chat_id, update_id, llm, sheets)
 
     if intent == "feedback":
         return await handle_feedback(message, chat_id, update_id)

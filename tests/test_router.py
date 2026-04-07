@@ -81,9 +81,19 @@ class TestRoute:
 
     @pytest.mark.asyncio
     async def test_plan_request_dispatch(self, db_path, mock_llm, mock_sheets):
+        from models.planner import DayPlan, WeeklyPlannerOutput
         mock_llm.classify_intent.return_value = (_classification("plan_request"), 0.001)
+        mock_llm.generate_plan.return_value = (
+            WeeklyPlannerOutput(
+                week_start="2026-04-13",
+                use_first=[],
+                days=[DayPlan(day="Monday", adult_dinner="Pasta")],
+            ),
+            0.04,
+        )
+        mock_sheets.get_inventory.return_value = []
         result = await route("make a meal plan", 123, "upd-6", mock_llm, mock_sheets)
-        assert "coming" in result.summary.lower()
+        assert result.message_type == "plan"
 
     @pytest.mark.asyncio
     async def test_correction_dispatch(self, db_path, mock_llm, mock_sheets):
