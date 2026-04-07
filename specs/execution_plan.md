@@ -47,7 +47,7 @@
 
 **Goal**: Users can ask what's in stock and bulk-add items by sending receipt photos.
 
-**Env vars required**: 2.5a–2.5d need `ANTHROPIC_API_KEY` + `GOOGLE_SERVICE_ACCOUNT_JSON` + `SPREADSHEET_ID` for integration testing / prompt tuning. 2.5e–2.5f are pure logic, no env vars needed.
+**Env vars required**: 2.5a–2.5d need `ANTHROPIC_API_KEY` + `GOOGLE_SERVICE_ACCOUNT_JSON` + `TEST_SPREADSHEET_ID` for integration testing / prompt tuning. 2.5e–2.5f are pure logic, no env vars needed.
 
 ### 2.5a — Inventory Query Handler ✅
 
@@ -75,9 +75,10 @@
 ### 2.5d — Batch Confirmation UX ✅
 
 1. ✅ For medium/low confidence receipt items, send a single grouped confirmation message.
-2. Store pending receipt operations in `pending_clarifications` with `resolution_policy = 'receipt_confirm'`. *(deferred — depends on Phase 3 clarification manager)*
-3. On user confirmation, apply all operations to Sheets via the existing inventory handler. *(deferred — depends on Phase 3 clarification manager)*
-4. On timeout (15min), silently drop unconfirmed items. *(deferred — depends on Phase 3 clarification manager)*
+2. ✅ Store pending receipt operations in `pending_clarifications` with `resolution_policy = 'receipt_confirm'`.
+3. ✅ On user confirmation ("yes"/"yep"/etc.), apply all operations to Sheets via the existing inventory handler. Non-affirmative replies drop pending items.
+4. ✅ On timeout (15min), silently drop unconfirmed items (handled by clarification expiry mechanism).
+5. ✅ Router checks for active clarifications *before* intent classification, so short replies like "yes" go straight to the clarification handler instead of being misclassified.
 
 **Note**: Receipt parsing `max_tokens` was increased from 2048 to 8192 after integration testing revealed that long Costco receipts truncated the structured JSON output, causing silent parse failures.
 
@@ -102,7 +103,7 @@
 
 ---
 
-## Phase 3 — Correction + Clarification + Admin (~5 hrs)
+## Phase 3 — Correction + Clarification + Admin ✅ (~5 hrs)
 
 **Goal**: Multi-turn flows work cleanly.
 
@@ -120,7 +121,7 @@
 
 **Goal**: Saturday 7am meal plan message arrives reliably.
 
-**Env vars required**: Yes — `ANTHROPIC_API_KEY` + `GOOGLE_SERVICE_ACCOUNT_JSON` + `SPREADSHEET_ID` needed for prompt tuning and integration testing. APScheduler wiring and `/plan` command structure are buildable without env vars, but the planner output quality requires real LLM calls to iterate.
+**Env vars required**: Yes — `ANTHROPIC_API_KEY` + `GOOGLE_SERVICE_ACCOUNT_JSON` + `TEST_SPREADSHEET_ID` needed for prompt tuning and integration testing. APScheduler wiring and `/plan` command structure are buildable without env vars, but the planner output quality requires real LLM calls to iterate.
 
 1. Implement planning context assembler (pulls from Sheets inventory + SQLite feedback + hardcoded family prefs for v0).
 2. Implement planner (Sonnet) with planning context + planner output schemas.
@@ -156,9 +157,9 @@
 
 ---
 
-## Open Items for Coding Agent Discussion
+## Open Items
 
-- **Testing Claude responses in CI**: cache responses to avoid flaky tests + token burn, or run against live API?
-- **Google service account auth on Railway**: JSON as env var vs. Railway secret file.
-- **APScheduler in a webhook-driven FastAPI app**: in-process vs. separate worker — decide based on Railway service model.
+- **APScheduler in a webhook-driven FastAPI app**: in-process vs. separate worker — decide based on Railway service model (needed for Phase 4).
 - **Fuzzy matching threshold tuning**: start with `fuzz.ratio > 85` for same-item, 60-85 triggers Claude-assisted match, may need adjustment after real usage.
+- **Google Sheets 503 resilience**: transient Sheets API errors (observed in production) are not retried — consider adding retry logic to `SheetsClient`.
+- **Voice messages**: Telegram voice notes are silently ignored (no STT service integrated). Low priority for v0.
