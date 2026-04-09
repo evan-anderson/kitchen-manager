@@ -83,10 +83,28 @@ def _db_path(override: str | None) -> str:
     return override if override is not None else settings.database_path
 
 
+_MIGRATIONS = [
+    # Add context_json to pending_clarifications (added after initial deploy)
+    ("pending_clarifications", "context_json", "ALTER TABLE pending_clarifications ADD COLUMN context_json TEXT"),
+    # Add recent_context_json to chat_state (added after initial deploy)
+    ("chat_state", "recent_context_json", "ALTER TABLE chat_state ADD COLUMN recent_context_json TEXT"),
+]
+
+
+async def _run_migrations(db: aiosqlite.Connection) -> None:
+    """Add columns that may be missing from older databases."""
+    for table, column, sql in _MIGRATIONS:
+        cursor = await db.execute(f"PRAGMA table_info({table})")
+        columns = {row[1] for row in await cursor.fetchall()}
+        if column not in columns:
+            await db.execute(sql)
+
+
 async def init_db(db_path: str | None = None) -> None:
-    """Create all tables if they don't exist."""
+    """Create all tables if they don't exist, then run migrations."""
     async with aiosqlite.connect(_db_path(db_path)) as db:
         await db.executescript(_CREATE_TABLES)
+        await _run_migrations(db)
         await db.commit()
 
 

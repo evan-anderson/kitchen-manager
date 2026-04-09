@@ -52,5 +52,5 @@ Python 3.11+, FastAPI, python-telegram-bot, anthropic SDK, gspread, rapidfuzz, A
   - **Unit tests**: `uv run pytest` (or `uv run pytest -m "not integration"`). No API keys or external services needed.
   - **Integration tests**: `uv run pytest -m integration`. Requires `.env` with `ANTHROPIC_API_KEY`, `GOOGLE_SERVICE_ACCOUNT_JSON`, and `TEST_SPREADSHEET_ID` (separate sheet for testing). Hits real Claude API and Google Sheets — costs tokens and takes ~40s.
   - Install dev deps first: `uv sync --extra dev`
-- **Git**: Commit directly to `main`. No PRs — solo project.
+- **Git**: Work on feature branches, merge to `main` without PRs. Solo project.
 - **Railway**: Already connected. Persistent volume at `/data`, set `DATABASE_PATH=/data/kitchen.db` in Railway env vars.

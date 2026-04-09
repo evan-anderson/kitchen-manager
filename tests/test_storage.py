@@ -71,6 +71,44 @@ async def test_init_db_is_idempotent(db_path):
     assert EXPECTED_TABLES.issubset(tables)
 
 
+async def test_migration_adds_missing_columns(tmp_path):
+    """init_db should add context_json/recent_context_json to old databases."""
+    old_db = str(tmp_path / "old.db")
+    # Create tables WITHOUT the newer columns
+    async with aiosqlite.connect(old_db) as db:
+        await db.execute("""CREATE TABLE pending_clarifications (
+            clarification_id TEXT PRIMARY KEY,
+            chat_id INTEGER NOT NULL,
+            user_id INTEGER NOT NULL,
+            original_update_id TEXT NOT NULL,
+            question_text TEXT NOT NULL,
+            state TEXT NOT NULL DEFAULT 'open',
+            created_at TEXT NOT NULL,
+            expires_at TEXT NOT NULL,
+            resolution_policy TEXT NOT NULL DEFAULT 'silent_drop',
+            expiry_action_taken TEXT
+        )""")
+        await db.execute("""CREATE TABLE chat_state (
+            chat_id INTEGER PRIMARY KEY,
+            last_seen_at TEXT NOT NULL,
+            active_clarification_id TEXT
+        )""")
+        await db.commit()
+
+    # Run init_db — should migrate without error
+    await init_db(db_path=old_db)
+
+    # Verify columns were added
+    async with aiosqlite.connect(old_db) as db:
+        cursor = await db.execute("PRAGMA table_info(pending_clarifications)")
+        pc_cols = {row[1] for row in await cursor.fetchall()}
+        cursor = await db.execute("PRAGMA table_info(chat_state)")
+        cs_cols = {row[1] for row in await cursor.fetchall()}
+
+    assert "context_json" in pc_cols
+    assert "recent_context_json" in cs_cols
+
+
 # ------------------------------------------------------------------
 # processed_updates — idempotency
 # ------------------------------------------------------------------
