@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 import uuid
 
 from handlers.inventory import _apply_operation
@@ -150,61 +151,82 @@ async def _handle_receipt_confirm(
             trace_id=trace_id,
         )
 
-    # Check if user confirmed all items
+    # Build per-item names: start with guessed names, override with corrections
+    item_names = [item["guess"] for item in pending_items]
+
     normalized = message.strip().lower()
     is_confirm = normalized in ("yes", "y", "yep", "yeah", "confirm", "ok", "sure", "correct")
 
-    if is_confirm:
-        # Apply all pending items with their guessed names
-        canonical_items = await sheets.get_canonical_items()
-        confirmations: list[str] = []
-        for item in pending_items:
-            op = InventoryOperation(**item["operation"])
-            guessed_name = item["guess"]
-
-            # Reconcile to get proper canonical name
-            result = reconcile_item(
-                op.model_copy(update={"item_canonical_guess": guessed_name}),
-                canonical_items,
+    if not is_confirm:
+        # Parse numbered corrections like "1. Yes\n2. Caesar salad bag\n3. Plain mini croissants"
+        corrections = _parse_numbered_corrections(message)
+        if not corrections:
+            # Couldn't parse — ask again instead of dropping
+            await log_trace(
+                trace_id, "receipt_confirm", "unparseable_reply", update_id,
+                json.dumps({"reply": message}),
+            )
+            return BotResponseOutput(
+                message_type="meta_response",
+                summary="I didn't understand that. Please reply with numbered corrections "
+                        "(e.g. \"1. Yes\\n2. Caesar salad\") or 'yes' to confirm all.",
+                trace_id=trace_id,
             )
 
-            # Auto-add new canonical items
-            if result.is_new and op.action == "add":
-                location = op.location_guess or "unknown"
-                unit = op.quantity_unit or ""
-                await sheets.add_canonical_item(result.canonical_name, "", location, unit)
-                canonical_items.append(result.canonical_name)
+        for idx, corrected_name in corrections.items():
+            if 1 <= idx <= len(item_names):
+                confirm_words = {"yes", "y", "yep", "yeah", "ok", "sure", "correct", "confirm"}
+                if corrected_name.lower().strip() not in confirm_words:
+                    item_names[idx - 1] = corrected_name
 
-            confirmation = await _apply_operation(op, result.canonical_name, sheets)
-            confirmations.append(confirmation)
+    # Apply all items with confirmed/corrected names
+    canonical_items = await sheets.get_canonical_items()
+    confirmations: list[str] = []
+    for item, name in zip(pending_items, item_names):
+        op = InventoryOperation(**item["operation"])
 
-            # Save receipt mapping for future
-            if op.item_raw.upper().strip() != result.canonical_name.upper().strip():
-                await save_receipt_mapping(op.item_raw, result.canonical_name)
-
-        await log_trace(
-            trace_id, "receipt_confirm", "confirmed_all", update_id,
-            json.dumps({"count": len(confirmations)}),
+        result = reconcile_item(
+            op.model_copy(update={"item_canonical_guess": name}),
+            canonical_items,
         )
 
-        summary = f"Confirmed and added {len(confirmations)} items:\n" + "\n".join(
-            f"  {line}" for line in confirmations
-        )
-        return BotResponseOutput(
-            message_type="confirmation",
-            summary=summary,
-            trace_id=trace_id,
-        )
+        if result.is_new and op.action == "add":
+            location = op.location_guess or "unknown"
+            unit = op.quantity_unit or ""
+            await sheets.add_canonical_item(result.canonical_name, "", location, unit)
+            canonical_items.append(result.canonical_name)
 
-    # User didn't say "yes" — treat as a correction or rejection
-    # For now, drop pending items and let the user know
+        confirmation = await _apply_operation(op, result.canonical_name, sheets)
+        confirmations.append(confirmation)
+
+        if op.item_raw.upper().strip() != result.canonical_name.upper().strip():
+            await save_receipt_mapping(op.item_raw, result.canonical_name)
+
     await log_trace(
-        trace_id, "receipt_confirm", "not_confirmed", update_id,
-        json.dumps({"reply": message}),
+        trace_id, "receipt_confirm", "confirmed", update_id,
+        json.dumps({"count": len(confirmations), "had_corrections": not is_confirm}),
     )
 
+    summary = f"Added {len(confirmations)} items:\n" + "\n".join(
+        f"  {line}" for line in confirmations
+    )
     return BotResponseOutput(
-        message_type="meta_response",
-        summary="Okay, I've dropped those pending items. You can resend the receipt or add items manually.",
+        message_type="confirmation",
+        summary=summary,
         trace_id=trace_id,
     )
+
+
+def _parse_numbered_corrections(message: str) -> dict[int, str]:
+    """Parse numbered replies like '1. Yes\\n2. Caesar salad\\n3. Plain croissants'.
+
+    Returns {1-based index: corrected name} or empty dict if unparseable.
+    """
+    # Match lines like "1. Yes", "2. This is a Caesar salad bag", "3) plain croissants"
+    pattern = re.compile(r"(\d+)\s*[.)]\s*(.+)")
+    corrections: dict[int, str] = {}
+    for line in message.strip().splitlines():
+        m = pattern.match(line.strip())
+        if m:
+            corrections[int(m.group(1))] = m.group(2).strip()
+    return corrections

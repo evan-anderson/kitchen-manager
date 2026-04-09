@@ -5,7 +5,7 @@ from unittest.mock import AsyncMock, patch
 
 import pytest
 
-from handlers.clarification import handle_clarification
+from handlers.clarification import handle_clarification, _parse_numbered_corrections
 from models.bot_response import BotResponseOutput
 from storage.sqlite import create_pending_clarification, get_active_clarification
 
@@ -224,8 +224,8 @@ class TestReceiptConfirmation:
         assert result.message_type == "confirmation"
 
     @pytest.mark.asyncio
-    async def test_no_drops_pending_items(self, db_path, mock_llm, mock_sheets):
-        """Non-affirmative replies drop pending items."""
+    async def test_unparseable_reply_asks_again(self, db_path, mock_llm, mock_sheets):
+        """Non-affirmative, non-numbered replies ask for rephrasing."""
         context = json.dumps({"pending_items": self._pending_items()})
         await create_pending_clarification(
             clarification_id="rcpt-3",
@@ -242,7 +242,60 @@ class TestReceiptConfirmation:
             "no those are wrong", 302, "upd-1", mock_llm, mock_sheets,
         )
         assert result.message_type == "meta_response"
-        assert "dropped" in result.summary.lower()
+        assert "didn't understand" in result.summary.lower()
+
+    @pytest.mark.asyncio
+    async def test_numbered_corrections_applied(self, db_path, mock_llm, mock_sheets):
+        """Numbered replies with corrections should apply corrected names."""
+        mock_sheets.get_canonical_items.return_value = []
+        mock_sheets.get_inventory.return_value = []
+
+        context = json.dumps({"pending_items": self._pending_items()})
+        await create_pending_clarification(
+            clarification_id="rcpt-corr-1",
+            chat_id=310,
+            user_id=310,
+            original_update_id="upd-0",
+            question_text="I need help with 2 items",
+            context_json=context,
+            resolution_policy="receipt_confirm",
+            db_path=db_path,
+        )
+
+        result = await handle_clarification(
+            "1. Yes\n2. Green cabbage head", 310, "upd-1", mock_llm, mock_sheets,
+        )
+
+        assert result.message_type == "confirmation"
+        assert "2 items" in result.summary.lower()
+        # Item 2 should use corrected name
+        calls = mock_sheets.update_inventory.call_args_list
+        assert len(calls) >= 2
+
+    @pytest.mark.asyncio
+    async def test_numbered_all_yes_confirms(self, db_path, mock_llm, mock_sheets):
+        """Numbered replies that are all 'yes' should confirm all items as-is."""
+        mock_sheets.get_canonical_items.return_value = []
+        mock_sheets.get_inventory.return_value = []
+
+        context = json.dumps({"pending_items": self._pending_items()})
+        await create_pending_clarification(
+            clarification_id="rcpt-corr-2",
+            chat_id=311,
+            user_id=311,
+            original_update_id="upd-0",
+            question_text="I need help with 2 items",
+            context_json=context,
+            resolution_policy="receipt_confirm",
+            db_path=db_path,
+        )
+
+        result = await handle_clarification(
+            "1. Yes\n2. Yes", 311, "upd-1", mock_llm, mock_sheets,
+        )
+
+        assert result.message_type == "confirmation"
+        assert "2 items" in result.summary.lower()
 
     @pytest.mark.asyncio
     async def test_no_sheets_returns_error(self, db_path, mock_llm):
@@ -263,3 +316,23 @@ class TestReceiptConfirmation:
             "yes", 303, "upd-1", mock_llm, sheets=None,
         )
         assert result.message_type == "error"
+
+
+class TestParseNumberedCorrections:
+    def test_basic_numbered_list(self):
+        result = _parse_numbered_corrections("1. Yes\n2. Caesar salad bag\n3. Plain mini croissants")
+        assert result == {1: "Yes", 2: "Caesar salad bag", 3: "Plain mini croissants"}
+
+    def test_parenthesis_style(self):
+        result = _parse_numbered_corrections("1) Yes\n2) Caesar salad")
+        assert result == {1: "Yes", 2: "Caesar salad"}
+
+    def test_empty_string(self):
+        assert _parse_numbered_corrections("") == {}
+
+    def test_no_numbers(self):
+        assert _parse_numbered_corrections("just some text") == {}
+
+    def test_mixed_spacing(self):
+        result = _parse_numbered_corrections("  1.  Yes  \n  2.  Broccoli  ")
+        assert result == {1: "Yes", 2: "Broccoli"}
